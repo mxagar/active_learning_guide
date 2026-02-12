@@ -6,6 +6,7 @@ from tqdm import tqdm
 
 from PIL import Image
 import numpy as np
+import matplotlib.pyplot as plt
 
 import torch
 import torch.nn as nn
@@ -38,7 +39,7 @@ class TrainConfig:
     # Logging / checkpointing
     out_dir: str = "runs/flowers_cnn"
     run_name: str = "exp"
-    metric_for_best: str = "val_acc"  # or "val_loss"
+    metric_for_best: str = "val_acc"  # "val_acc" | "val_loss" | "val_f1"
     maximize_metric: bool = True  # True for accuracy, False for loss
 
     # Reproducibility
@@ -58,13 +59,17 @@ def set_seed(seed: int) -> None:
 class SimpleCNN(nn.Module):
     """
     A small CNN for 64x64 RGB images.
-    Outputs logits of shape (B, num_classes).
+
+    In forward:
+    - If feature_vector=False (default): returns logits (B, num_classes)
+    - If feature_vector=True: returns feature vector (B, 256) from penultimate layer
     """
     def __init__(
         self,
         num_classes: int,
         in_channels: int = 3,
         base_channels: int = 32,  # number of channels @ 1st conv layer, 2x & 4x later
+        classifier_hidden: int = 256,
         classifier_dropout: float = 0.3,
     ) -> None:
         super().__init__()
@@ -89,18 +94,26 @@ class SimpleCNN(nn.Module):
             nn.MaxPool2d(2),  # 16 -> 8
         )
 
-        self.classifier = nn.Sequential(
+        self.projection = nn.Sequential(
             nn.Flatten(),
-            nn.Linear(c3 * 8 * 8, 256),
+            nn.Linear(c3 * 8 * 8, classifier_hidden),
             nn.ReLU(inplace=True),
-            nn.Dropout(p=classifier_dropout),
-            nn.Linear(256, num_classes),
         )
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        self.classifier = nn.Sequential(
+            nn.Dropout(p=classifier_dropout),
+            nn.Linear(classifier_hidden, num_classes),
+        )
+
+    def forward(self, x: torch.Tensor, feature_vector: bool = False) -> torch.Tensor:
         x = self.features(x)
-        x = self.classifier(x)
-        return x
+        feat = self.projection(x)  # (B, classifier_hidden)
+
+        if feature_vector:
+            return feat
+
+        logits = self.classifier(feat)  # (B, num_classes)
+        return logits
 
 
 def save_model(
@@ -184,19 +197,54 @@ def _build_scheduler(optimizer: torch.optim.Optimizer, cfg: TrainConfig):
     raise ValueError(f"Unknown scheduler: {cfg.scheduler}")
 
 
+@torch.no_grad()
+def _update_confusion_matrix(cm: torch.Tensor, y_true: torch.Tensor, y_pred: torch.Tensor) -> torch.Tensor:
+    """
+    cm: (K, K) where rows=true, cols=pred
+    y_true, y_pred: (B,)
+    """
+    k = cm.size(0)
+    idx = y_true * k + y_pred
+    cm.view(-1).index_add_(0, idx, torch.ones_like(idx, dtype=cm.dtype))
+    return cm
+
+
+@torch.no_grad()
+def _macro_f1_from_cm(cm: torch.Tensor, eps: float = 1e-12) -> float:
+    """
+    Macro-F1 over classes, ignoring classes with 0 support (optional: keep them as 0).
+    """
+    tp = torch.diag(cm)
+    fp = cm.sum(dim=0) - tp
+    fn = cm.sum(dim=1) - tp
+
+    precision = tp / (tp + fp + eps)
+    recall    = tp / (tp + fn + eps)
+    f1 = 2 * precision * recall / (precision + recall + eps)
+
+    # Average over classes present in ground truth
+    support = cm.sum(dim=1)
+    mask = support > 0
+    if mask.any():
+        return f1[mask].mean().item()
+    return f1.mean().item()
+
+
 def train_one_epoch(
     model: nn.Module,
     loader: DataLoader,
     optimizer: torch.optim.Optimizer,
     device: torch.device,
+    num_classes: int,
     grad_clip_norm: Optional[float] = None,
 ) -> dict[str, float]:
     model.train()
     running_loss = 0.0
     running_correct = 0
     total = 0
+    cm = torch.zeros((num_classes, num_classes), dtype=torch.float64, device=device)
 
-    for x, y in tqdm(loader, "Training...", leave=False):
+    for x, y in tqdm(loader, desc="Training...", leave=False):
         x = x.to(device, non_blocking=True)
         y = y.to(device, non_blocking=True)
 
@@ -210,14 +258,21 @@ def train_one_epoch(
 
         optimizer.step()
 
+        preds = logits.argmax(dim=1)
+
         bs = y.size(0)
         running_loss += loss.item() * bs
-        running_correct += (logits.argmax(dim=1) == y).sum().item()
+        running_correct += (preds == y).sum().item()
         total += bs
+
+        _update_confusion_matrix(cm, y, preds)
+
+    train_f1 = _macro_f1_from_cm(cm)
 
     return {
         "train_loss": running_loss / max(1, total),
         "train_acc": running_correct / max(1, total),
+        "train_f1": train_f1,
     }
 
 
@@ -226,12 +281,14 @@ def validate(
     model: nn.Module,
     loader: DataLoader,
     device: torch.device,
+    num_classes: int,
     prefix: str = "val",
 ) -> dict[str, float]:
     model.eval()
     running_loss = 0.0
     running_correct = 0
     total = 0
+    cm = torch.zeros((num_classes, num_classes), dtype=torch.float64, device=device)
 
     for x, y in tqdm(loader, desc="Evaluating...", leave=False):
         x = x.to(device, non_blocking=True)
@@ -240,14 +297,21 @@ def validate(
         logits = model(x)
         loss = F.cross_entropy(logits, y)
 
+        preds = logits.argmax(dim=1)
+
         bs = y.size(0)
         running_loss += loss.item() * bs
-        running_correct += (logits.argmax(dim=1) == y).sum().item()
+        running_correct += (preds == y).sum().item()
         total += bs
+
+        _update_confusion_matrix(cm, y, preds)
+
+    f1 = _macro_f1_from_cm(cm)
 
     return {
         f"{prefix}_loss": running_loss / max(1, total),
         f"{prefix}_acc": running_correct / max(1, total),
+        f"{prefix}_f1": f1,
     }
 
 
@@ -256,9 +320,10 @@ def evaluate(
     model: nn.Module,
     loader: DataLoader,
     device: torch.device,
+    num_classes: int,
 ) -> dict[str, float]:
     # Same as validate, but uses "test" prefix by convention
-    return validate(model, loader, device, prefix="test")
+    return validate(model, loader, device, num_classes=num_classes, prefix="test")
 
 
 def train(
@@ -298,9 +363,16 @@ def train(
             loader=train_loader,
             optimizer=optimizer,
             device=device,
+            num_classes=cfg.num_classes,
             grad_clip_norm=cfg.grad_clip_norm,
         )
-        val_metrics = validate(model=model, loader=val_loader, device=device, prefix="val")
+        val_metrics = validate(
+            model=model,
+            loader=val_loader,
+            device=device,
+            num_classes=cfg.num_classes,
+            prefix="val",
+        )
 
         # LR logging
         lr = optimizer.param_groups[0]["lr"]
@@ -321,7 +393,9 @@ def train(
         # Save "best"
         current = metrics.get(cfg.metric_for_best)
         if current is None:
-            raise KeyError(f"metric_for_best='{cfg.metric_for_best}' not found in metrics keys: {list(metrics.keys())}")
+            raise KeyError(
+                f"metric_for_best='{cfg.metric_for_best}' not found in metrics keys: {list(metrics.keys())}"
+            )
 
         if _is_better(float(current), float(best_metric), maximize=cfg.maximize_metric):
             best_metric = float(current)
@@ -338,11 +412,11 @@ def train(
         if scheduler is not None:
             scheduler.step()
 
-        # Optional: simple console log (comment out if you don't want prints)
+        # Console log (now includes F1)
         print(
             f"Epoch {epoch:03d}/{cfg.epochs} | "
-            f"train_loss={metrics['train_loss']:.4f} train_acc={metrics['train_acc']:.3f} | "
-            f"val_loss={metrics['val_loss']:.4f} val_acc={metrics['val_acc']:.3f} | "
+            f"train_loss={metrics['train_loss']:.4f} train_acc={metrics['train_acc']:.3f} train_f1={metrics['train_f1']:.3f} | "
+            f"val_loss={metrics['val_loss']:.4f} val_acc={metrics['val_acc']:.3f} val_f1={metrics['val_f1']:.3f} | "
             f"lr={lr:.2e}"
         )
 
@@ -359,28 +433,48 @@ def plot_history(
 
     keys: which metrics to plot. If None, tries common ones.
     """
-    import matplotlib.pyplot as plt
-
     if not history:
         raise ValueError("Empty history")
 
     epochs = [h["epoch"] for h in history]
 
     if keys is None:
-        # Plot these if present
-        candidates = ["train_loss", "val_loss", "train_acc", "val_acc"]
+        candidates = [
+            "train_loss", "val_loss",
+            "train_acc", "val_acc",
+            "train_f1", "val_f1",
+        ]
         keys = [k for k in candidates if k in history[0]]
 
-    plt.figure(figsize=(10, 5))
-    for k in keys:
-        ys = [h.get(k, float("nan")) for h in history]
-        plt.plot(epochs, ys, label=k)
+    loss_keys = [k for k in keys if k.endswith("_loss")]
+    other_keys = [k for k in keys if not k.endswith("_loss")]
 
-    plt.xlabel("Epoch")
-    plt.ylabel("Metric")
+    fig, ax1 = plt.subplots(figsize=(10, 5))
+    ax2 = ax1.twinx()
+
+    # Plot losses (left axis)
+    for k in loss_keys:
+        ys = [h.get(k, float("nan")) for h in history]
+        ax1.plot(epochs, ys, label=k, linestyle="-")
+
+    ax1.set_xlabel("Epoch")
+    ax1.set_ylabel("Loss")
+    ax1.grid(True, alpha=0.3)
+
+    # Plot metrics (right axis)
+    for k in other_keys:
+        ys = [h.get(k, float("nan")) for h in history]
+        ax2.plot(epochs, ys, label=k, linestyle="--")
+
+    ax2.set_ylabel("Score")
+
+    # Merge legends
+    lines1, labels1 = ax1.get_legend_handles_labels()
+    lines2, labels2 = ax2.get_legend_handles_labels()
+    ax1.legend(lines1 + lines2, labels1 + labels2, loc="best")
+
     plt.title(title)
-    plt.legend()
-    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
     plt.show()
 
 
