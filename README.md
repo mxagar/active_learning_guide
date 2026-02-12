@@ -59,35 +59,36 @@ Then, you can start using the main notebooks and scripts:
 [`scikit-activeml`](https://github.com/scikit-activeml/scikit-activeml) requires us to define a query strategy, which is a class that implements the logic for selecting the most informative samples to label. Then, we pass the dataset and the classifier to the query:
 
 ```python
-# Instantiate query strategy, entropy-based uncertainty sampling in this case.
-# This computes the entropy from the class probabilities and selects the samples with the highest entropy
-# (i.e., the most uncertain predictions)
+# Instantiate a query strategy, e.g., an entropy-based uncertainty sampling in this case.
+# This computes the entropy (E=-sum(plog(p))) from the class probabilities
+# and selects the samples with the highest entropy,
+# i.e., the most uncertain predictions.
 query_strategy = UncertaintySampling(
     method="entropy",
     ...
 )
 
 # Query the strategy for the next samples to label
-query_idx = query_strategy.query(X, y, clf=MyClassifier)
+query_idx = query_strategy.query(X, y, clf=my_classifier)
 ```
 
-Here, the inputs are:
+Here, the inputs & outputs are:
 
 - `X` = feature matrix (n_samples, n_features)
 - `y` = labels with -1 for unlabeled
-- `clf` = something that has `predict_proba(X)`
+- `clf` = some classifier model that has the method `predict_proba(X)`
 - `query_idx` = indices of the samples to label next
 
 Therefore, we need to adapt our setup to fit this API.
 
-There are other query strategies, too:
+Note that there are other query strategies, too:
 
 - Margin Sampling: `UncertaintySampling(method="margin", ...)`
 - Least Confidence: `UncertaintySampling(method="least_confidence", ...)`
 - Random: `RandomSampling(...)`
 - Query by Committee: `QueryByCommittee(...)`
 - BADGE: `Badge(...)`
-- And many more! Check the documentation for details.
+- And many more!
 
 
 ## Authorship
