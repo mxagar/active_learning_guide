@@ -26,6 +26,7 @@ seaborn
 tensorboard
 tiktoken
 torch
+torchvision
 torchtext
 tqdm
 transformers[torch]

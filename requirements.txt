@@ -348,6 +348,7 @@ numpy==2.3.5
     #   tensorboard
     #   torchmetrics
     #   torchtext
+    #   torchvision
     #   transformers
     #   umap-learn
 onnx==1.20.1
@@ -397,6 +398,7 @@ pillow==12.1.1
     #   baal
     #   matplotlib
     #   tensorboard
+    #   torchvision
 platformdirs==4.5.1
     # via jupyter-core
 pluggy==1.6.0
@@ -588,10 +590,13 @@ torch==2.10.0
     #   peft
     #   torchmetrics
     #   torchtext
+    #   torchvision
     #   transformers
 torchmetrics==1.8.2
     # via baal
 torchtext==0.18.0
+    # via -r requirements.in
+torchvision==0.25.0
     # via -r requirements.in
 tornado==6.5.4
     # via

@@ -1,13 +1,23 @@
+import math
 from pathlib import Path
-from PIL import Image
-from tqdm import tqdm
 import random
 from collections import defaultdict
+from typing import Optional
+
+from PIL import Image
+from tqdm import tqdm
+import numpy as np
+
+import torch
+import torchvision
+import torchvision.transforms as T
 from torch.utils.data import Dataset
+import matplotlib.pyplot as plt
 
 
 IMG_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp"}
-
+IMAGENET_MEAN = (0.485, 0.456, 0.406)
+IMAGENET_STD  = (0.229, 0.224, 0.225)
 
 def resize_min_side(img: Image.Image, min_side: int = 64) -> Image.Image:
     """Resize so that min(width, height) == min_side, keeping aspect ratio."""
@@ -108,7 +118,7 @@ def build_paths_and_labels(root: str | Path):
         paths (list of Path): list of image file paths.
         labels (list of int): list of integer labels corresponding to class subfolders.
         classes (list of str): list of class names corresponding to subfolder names.
-        class_to_idx (dict): mapping from class name to label index.
+        class_to_id (dict): mapping from class name to label index.
     
     Raises:
         RuntimeError: if no class subfolders or no images are found under the root folder.
@@ -118,7 +128,7 @@ def build_paths_and_labels(root: str | Path):
     if not classes:
         raise RuntimeError(f"No class subfolders found under: {root}")
 
-    class_to_idx = {cls_: i for i, cls_ in enumerate(classes)}
+    class_to_id = {cls_: i for i, cls_ in enumerate(classes)}
 
     paths = []
     labels = []
@@ -127,15 +137,15 @@ def build_paths_and_labels(root: str | Path):
         for p in cls_dir.rglob("*"):
             if p.is_file() and p.suffix.lower() in IMG_EXTS:
                 paths.append(p)
-                labels.append(class_to_idx[cls_])
+                labels.append(class_to_id[cls_])
 
     if not paths:
         raise RuntimeError(f"No images found under: {root}")
     
-    return paths, labels, classes, class_to_idx
+    return paths, labels, classes, class_to_id
 
 
-def train_test_val_split(
+def train_test_val_pool_split(
     labels: list[str],
     val_ratio: float = 0.1,
     test_ratio: float = 0.1,
@@ -143,15 +153,15 @@ def train_test_val_split(
     seed: int = 42,
 ) -> tuple[list[int], list[int], list[int], list[int]]:
     """
-    Split indices into train/val/test sets, stratified by class labels.
+    Split indices into train/val/test/pool sets, stratified by class labels.
 
-    IMPORTANT: All ratios are applied to the FULL dataset size per class.
-        n_train = round(n_class * train_ratio)
-        n_val   = round(n_class * val_ratio)
-        n_test  = round(n_class * test_ratio)
+    Split order per class (IMPORTANT for stability across train_ratio changes):
+        1) test
+        2) val
+        3) train
+        4) pool (the rest)
 
-    pool_idx is always the rest:
-        pool = remaining indices after taking train/val/test
+    Ratios are applied w.r.t. the FULL dataset size per class.
 
     If train_ratio is None:
         train_ratio = 1.0 - val_ratio - test_ratio  (so pool is empty)
@@ -176,7 +186,6 @@ def train_test_val_split(
         raise ValueError("val_ratio and test_ratio must be >= 0.")
     if train_ratio is None:
         train_ratio = 1.0 - val_ratio - test_ratio
-
     if train_ratio < 0:
         raise ValueError("train_ratio must be >= 0.")
     if train_ratio + val_ratio + test_ratio > 1.0:
@@ -184,57 +193,54 @@ def train_test_val_split(
 
     rng = random.Random(seed)
 
-    by_class = defaultdict(list)
+    by_class: dict[str, list[int]] = defaultdict(list)
     for i, y in enumerate(labels):
         by_class[y].append(i)
 
-    train_idx, val_idx, test_idx, pool_idx = [], [], [], []
+    train_idx, pool_idx, val_idx, test_idx = [], [], [], []
 
     for y, idxs in by_class.items():
         idxs = idxs.copy()
         rng.shuffle(idxs)
 
         n = len(idxs)
-        n_train = int(round(n * train_ratio))
-        n_val   = int(round(n * val_ratio))
-        n_test  = int(round(n * test_ratio))
 
-        # Just in case rounding pushes us over n, clip deterministically.
-        # Excess gets removed from train, then val, then test (pool stays the remainder).
-        total = n_train + n_val + n_test
-        if total > n:
-            overflow = total - n
-            # reduce train first
-            take = min(overflow, n_train)
-            n_train -= take
+        # Allocate TEST first, then VAL: these stay stable if seed/ratios stay the same
+        n_test = int(round(n * test_ratio))
+        n_val  = int(round(n * val_ratio))
+
+        # Clamp in case rounding makes n_test + n_val > n
+        if n_test + n_val > n:
+            overflow = (n_test + n_val) - n
+            # reduce val first, then test
+            take = min(overflow, n_val)
+            n_val -= take
             overflow -= take
-            # then val
             if overflow > 0:
-                take = min(overflow, n_val)
-                n_val -= take
-                overflow -= take
-            # then test
-            if overflow > 0:
-                take = min(overflow, n_test)
-                n_test -= take
-                overflow -= take
+                n_test -= min(overflow, n_test)
 
-        # Assign slices (order doesn't matter; keep it consistent)
-        train = idxs[:n_train]
-        val   = idxs[n_train:n_train + n_val]
-        test  = idxs[n_train + n_val:n_train + n_val + n_test]
-        pool  = idxs[n_train + n_val + n_test:]
+        test = idxs[:n_test]
+        val  = idxs[n_test:n_test + n_val]
 
-        train_idx.extend(train)
-        val_idx.extend(val)
+        remaining = idxs[n_test + n_val:]  # candidates for train/pool only
+
+        # Allocate TRAIN from the remaining, using train_ratio w.r.t. full n, but capped by remaining
+        n_train_target = int(round(n * train_ratio))
+        n_train = min(n_train_target, len(remaining))
+
+        train = remaining[:n_train]
+        pool  = remaining[n_train:]
+
         test_idx.extend(test)
+        val_idx.extend(val)
+        train_idx.extend(train)
         pool_idx.extend(pool)
 
-    # Shuffle within each split
+    # Shuffle within each split (optional, but usually nice)
     rng.shuffle(train_idx)
+    rng.shuffle(pool_idx)
     rng.shuffle(val_idx)
     rng.shuffle(test_idx)
-    rng.shuffle(pool_idx)
 
     return train_idx, val_idx, test_idx, pool_idx
 
@@ -251,14 +257,13 @@ class CustomDataset(Dataset):
     - We can dynamically grow/shrink subsets
     """
 
-    def __init__(self, paths, labels, indices, transform=None):
-        """
-        Args:
-            paths: List[Path] or List[str]
-            labels: List[int]
-            indices: List[int] (subset indices)
-            transform: torchvision transforms
-        """
+    def __init__(
+        self,
+        paths: list[Path|str],
+        labels: list[str],
+        indices: list[int],
+        transform: T.Compose = None,
+    ) -> None:
         if not len(paths) == len(labels):
             raise ValueError("paths and labels must have the same length")
         if len(indices) > len(paths):
@@ -284,3 +289,92 @@ class CustomDataset(Dataset):
             img = self.transform(img)
 
         return img, label
+
+
+def unnormalize_imagenet(x: torch.Tensor) -> torch.Tensor:
+    """
+    x: (B, C, H, W) normalized with ImageNet stats
+    returns: (B, C, H, W) in [0, 1] approx
+    """
+    mean = torch.tensor(IMAGENET_MEAN, device=x.device).view(1, 3, 1, 1)
+    std  = torch.tensor(IMAGENET_STD,  device=x.device).view(1, 3, 1, 1)
+    return x * std + mean
+
+
+@torch.no_grad()
+def visualize_batch(
+    batch: torch.Tensor,
+    class_names: Optional[list[str]] = None,
+    max_images: int = 16,
+    nrow: int = 4,
+    figsize: tuple[int,int] = (10, 10),
+    title: Optional[str] = None,
+    font_size: int = 10,
+) -> None:
+    """
+    Plot a batch of images in a grid, with optional labels below.
+
+    Args:
+        batch: either (images, labels) or images
+            images: Tensor (B, C, H, W) normalized
+            labels: Tensor (B,) optional
+        class_names: list[str] optional, maps label -> name
+        max_images: int, maximum number of images to display (will take first N)
+        nrow: int, number of images per row in the grid
+        figsize: tuple, size of the matplotlib figure
+        title: optional title for the plot
+        font_size: int, font size for labels
+    """
+    if isinstance(batch, (list, tuple)) and len(batch) >= 1:
+        images = batch[0]
+        labels = batch[1] if len(batch) > 1 else None
+    else:
+        images = batch
+        labels = None
+
+    images = images[:max_images].detach().cpu()
+    if labels is not None:
+        labels = labels[:max_images].detach().cpu()
+
+    # Unnormalize + clamp
+    images_vis = unnormalize_imagenet(images).clamp(0.0, 1.0)
+
+    B, C, H, W = images_vis.shape
+    ncol = nrow
+    nrows = math.ceil(B / ncol)
+
+    fig, axes = plt.subplots(nrows, ncol, figsize=figsize)
+    axes = np.atleast_1d(axes).ravel()  # <-- robust flatten
+
+    if title:
+        fig.suptitle(title)
+
+    for i, ax in enumerate(axes):
+        ax.axis("off")
+        if i >= B:
+            continue
+
+        img = images_vis[i].permute(1, 2, 0).numpy()
+        ax.imshow(img)
+
+        if labels is not None:
+            lab_idx = int(labels[i])
+            lab = class_names[lab_idx] if class_names is not None else str(lab_idx)
+
+            # Put label BELOW the image (outside axes) in axes coordinates
+            ax.text(
+                0.5,
+                -0.10,
+                lab,
+                transform=ax.transAxes,
+                ha="center",
+                va="top",
+                fontsize=font_size,
+                bbox=dict(facecolor="white", alpha=0.7, edgecolor="none", pad=1),
+            )
+
+    # Layout: leave room for suptitle if present + for below-axis labels
+    plt.tight_layout()
+    if title:
+        plt.subplots_adjust(top=0.90)
+    plt.show()
