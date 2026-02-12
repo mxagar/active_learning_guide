@@ -2,14 +2,13 @@ import math
 from pathlib import Path
 import random
 from collections import defaultdict
-from typing import Optional
+from typing import Optional, Sequence
 
 from PIL import Image
 from tqdm import tqdm
 import numpy as np
 
 import torch
-import torchvision
 import torchvision.transforms as T
 from torch.utils.data import Dataset
 import matplotlib.pyplot as plt
@@ -117,22 +116,22 @@ def build_paths_and_labels(root: str | Path):
     Returns:
         paths (list of Path): list of image file paths.
         labels (list of int): list of integer labels corresponding to class subfolders.
-        classes (list of str): list of class names corresponding to subfolder names.
+        classe_names (list of str): list of class names corresponding to subfolder names.
         class_to_id (dict): mapping from class name to label index.
     
     Raises:
         RuntimeError: if no class subfolders or no images are found under the root folder.
     """
     root = Path(root)
-    classes = sorted([p.name for p in root.iterdir() if p.is_dir()])
-    if not classes:
+    classe_names = sorted([p.name for p in root.iterdir() if p.is_dir()])
+    if not classe_names:
         raise RuntimeError(f"No class subfolders found under: {root}")
 
-    class_to_id = {cls_: i for i, cls_ in enumerate(classes)}
+    class_to_id = {cls_: i for i, cls_ in enumerate(classe_names)}
 
     paths = []
     labels = []
-    for cls_ in classes:
+    for cls_ in classe_names:
         cls_dir = root / cls_
         for p in cls_dir.rglob("*"):
             if p.is_file() and p.suffix.lower() in IMG_EXTS:
@@ -142,7 +141,7 @@ def build_paths_and_labels(root: str | Path):
     if not paths:
         raise RuntimeError(f"No images found under: {root}")
     
-    return paths, labels, classes, class_to_id
+    return paths, labels, classe_names, class_to_id
 
 
 def train_test_val_pool_split(
@@ -303,7 +302,7 @@ def unnormalize_imagenet(x: torch.Tensor) -> torch.Tensor:
 
 @torch.no_grad()
 def visualize_batch(
-    batch: torch.Tensor,
+    batch: Sequence | torch.Tensor,
     class_names: Optional[list[str]] = None,
     max_images: int = 16,
     nrow: int = 4,
@@ -325,12 +324,16 @@ def visualize_batch(
         title: optional title for the plot
         font_size: int, font size for labels
     """
-    if isinstance(batch, (list, tuple)) and len(batch) >= 1:
-        images = batch[0]
-        labels = batch[1] if len(batch) > 1 else None
-    else:
+    if torch.is_tensor(batch):
         images = batch
         labels = None
+    elif isinstance(batch, Sequence) and len(batch) >= 1 and torch.is_tensor(batch[0]):
+        images = batch[0]
+        labels = batch[1] if len(batch) > 1 and torch.is_tensor(batch[1]) else None
+    else:
+        raise TypeError(
+            "batch must be either a Tensor (B,C,H,W) or a sequence like (images, labels)."
+        )
 
     images = images[:max_images].detach().cpu()
     if labels is not None:
@@ -344,7 +347,7 @@ def visualize_batch(
     nrows = math.ceil(B / ncol)
 
     fig, axes = plt.subplots(nrows, ncol, figsize=figsize)
-    axes = np.atleast_1d(axes).ravel()  # <-- robust flatten
+    axes = np.atleast_1d(axes).ravel()
 
     if title:
         fig.suptitle(title)
@@ -359,9 +362,11 @@ def visualize_batch(
 
         if labels is not None:
             lab_idx = int(labels[i])
-            lab = class_names[lab_idx] if class_names is not None else str(lab_idx)
+            if class_names is not None:
+                lab = class_names[lab_idx] if 0 <= lab_idx < len(class_names) else str(lab_idx)
+            else:
+                lab = str(lab_idx)
 
-            # Put label BELOW the image (outside axes) in axes coordinates
             ax.text(
                 0.5,
                 -0.10,
@@ -373,7 +378,6 @@ def visualize_batch(
                 bbox=dict(facecolor="white", alpha=0.7, edgecolor="none", pad=1),
             )
 
-    # Layout: leave room for suptitle if present + for below-axis labels
     plt.tight_layout()
     if title:
         plt.subplots_adjust(top=0.90)
