@@ -1,19 +1,15 @@
 # Active Learning Guide
 
-This is my small guide (& compilation of examples) for [active learning](https://en.wikipedia.org/wiki/Active_learning).
+This is my small guide (& compilation of examples) for [active learning](https://en.wikipedia.org/wiki/Active_learning):
 
-Libraries used:
+- Library used: [`scikit-activeml`](https://github.com/scikit-activeml/scikit-activeml).
+- Datasets used: [Kaggle Flowers Dataset](https://www.kaggle.com/datasets/imsparsh/flowers-dataset), classification of 5 types of flowers &mdash; training split:
 
-- [`scikit-activeml`](https://github.com/scikit-activeml/scikit-activeml)
-- [BAAL: Bayesian Active Learning Library](https://github.com/baal-org/baal)
-
-Datasets used: [Kaggle Flowers Dataset](https://www.kaggle.com/datasets/imsparsh/flowers-dataset), classification of 5 types of flowers &mdash; training split:
-
-- daisy: 501 images
-- dandelion: 646 images
-- rose: 497 images
-- sunflower: 495 images
-- tulip: 607 images
+  - daisy: 501 images
+  - dandelion: 646 images
+  - rose: 497 images
+  - sunflower: 495 images
+  - tulip: 607 images
 
 Table of contents:
 
@@ -22,7 +18,6 @@ Table of contents:
   - [How to Use this Guide](#how-to-use-this-guide)
   - [Active Learning in a Nutshell](#active-learning-in-a-nutshell)
   - [Scikit ActiveML](#scikit-activeml)
-  - [BAAL: Bayesian Active Learning Library](#baal-bayesian-active-learning-library)
   - [Authorship](#authorship)
 
 ## Setup
@@ -62,12 +57,38 @@ Then, you can start using the main notebooks and scripts:
 
 ## Scikit ActiveML
 
-[`scikit-activeml`](https://github.com/scikit-activeml/scikit-activeml)
+[`scikit-activeml`](https://github.com/scikit-activeml/scikit-activeml) requires us to define a query strategy, which is a class that implements the logic for selecting the most informative samples to label. Then, we pass the dataset and the classifier to the query:
 
+```python
+# Instantiate query strategy, entropy-based uncertainty sampling in this case.
+# This computes the entropy from the class probabilities and selects the samples with the highest entropy
+# (i.e., the most uncertain predictions)
+query_strategy = UncertaintySampling(
+    method="entropy",
+    ...
+)
 
-## BAAL: Bayesian Active Learning Library
+# Query the strategy for the next samples to label
+query_idx = query_strategy.query(X, y, clf=MyClassifier)
+```
 
-[`baal`](https://github.com/baal-org/baal)
+Here, the inputs are:
+
+- `X` = feature matrix (n_samples, n_features)
+- `y` = labels with -1 for unlabeled
+- `clf` = something that has `predict_proba(X)`
+- `query_idx` = indices of the samples to label next
+
+Therefore, we need to adapt our setup to fit this API.
+
+There are other query strategies, too:
+
+- Margin Sampling: `UncertaintySampling(method="margin", ...)`
+- Least Confidence: `UncertaintySampling(method="least_confidence", ...)`
+- Random: `RandomSampling(...)`
+- Query by Committee: `QueryByCommittee(...)`
+- BADGE: `Badge(...)`
+- And many more! Check the documentation for details.
 
 
 ## Authorship
