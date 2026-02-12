@@ -5,11 +5,9 @@ This is my small guide (& compilation of examples) for [active learning](https:/
 Libraries used:
 
 - [`scikit-activeml`](https://github.com/scikit-activeml/scikit-activeml)
-- [BAAL: Bayesian active learning library](https://github.com/baal-org/baal)
+- [BAAL: Bayesian Active Learning Library](https://github.com/baal-org/baal)
 
-Datasets used:
-
-- []()
+Datasets used: [Kaggle Flowers Dataset](https://www.kaggle.com/datasets/imsparsh/flowers-dataset)
 
 Table of contents:
 
@@ -20,7 +18,6 @@ Table of contents:
   - [Scikit ActiveML](#scikit-activeml)
   - [BAAL: Bayesian Active Learning Library](#baal-bayesian-active-learning-library)
   - [Authorship](#authorship)
-
 
 ## Setup
 
@@ -46,6 +43,7 @@ pip-sync requirements.txt
 
 - [`active_learning`](./active_learning.ipynb)
 - [`model.py`](./model.py)
+- [`utils.py`](./utils.py)
 - [`./data`](./data/)
 
 ## Active Learning in a Nutshell
