@@ -16,9 +16,9 @@ Table of contents:
 - [Active Learning Guide](#active-learning-guide)
   - [Setup](#setup)
   - [How to Use this Guide](#how-to-use-this-guide)
-  - [Basic Concepts](#basic-concepts)
-  - [Scikit Activeml](#scikit-activeml)
-  - [BAAL](#baal)
+  - [Active Learning in a Nutshell](#active-learning-in-a-nutshell)
+  - [Scikit ActiveML](#scikit-activeml)
+  - [BAAL: Bayesian Active Learning Library](#baal-bayesian-active-learning-library)
   - [Authorship](#authorship)
 
 
@@ -44,15 +44,23 @@ pip-sync requirements.txt
 
 ## How to Use this Guide
 
+- [`active_learning`](./active_learning.ipynb)
+- [`model.py`](./model.py)
+- [`./data`](./data/)
+
+## Active Learning in a Nutshell
 
 
-## Basic Concepts
 
 
-## Scikit Activeml
+## Scikit ActiveML
+
+[`scikit-activeml`](https://github.com/scikit-activeml/scikit-activeml)
 
 
-## BAAL
+## BAAL: Bayesian Active Learning Library
+
+[`baal`](https://github.com/baal-org/baal)
 
 
 ## Authorship

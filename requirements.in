@@ -12,6 +12,7 @@ matplotlib
 numpy
 onnx
 onnxruntime
+optuna
 pandas
 peft
 pip
