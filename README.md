@@ -7,7 +7,13 @@ Libraries used:
 - [`scikit-activeml`](https://github.com/scikit-activeml/scikit-activeml)
 - [BAAL: Bayesian Active Learning Library](https://github.com/baal-org/baal)
 
-Datasets used: [Kaggle Flowers Dataset](https://www.kaggle.com/datasets/imsparsh/flowers-dataset)
+Datasets used: [Kaggle Flowers Dataset](https://www.kaggle.com/datasets/imsparsh/flowers-dataset), classification of 5 types of flowers &mdash; training split:
+
+- daisy: 501 images
+- dandelion: 646 images
+- rose: 497 images
+- sunflower: 495 images
+- tulip: 607 images
 
 Table of contents:
 
@@ -41,10 +47,13 @@ pip-sync requirements.txt
 
 ## How to Use this Guide
 
-- [`active_learning`](./active_learning.ipynb)
-- [`model.py`](./model.py)
-- [`utils.py`](./utils.py)
-- [`./data`](./data/)
+Once the environment is set up, first, you need to download and extract the dataset to the folder [`./data`](./data/) under the subfolder `flowers`.
+
+Then, you can start using the main notebooks and scripts:
+
+- [`active_learning.ipynb`](./active_learning.ipynb): main notebook with the active learning loop, using `scikit-activeml` and `baal`.
+- [`model.py`](./model.py): model definition and training/evaluation functions.
+- [`utils.py`](./utils.py): auxiliary functions.
 
 ## Active Learning in a Nutshell
 
