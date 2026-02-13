@@ -53,6 +53,11 @@ Then, you can start using the main notebooks and scripts:
 ## Active Learning in a Nutshell
 
 
+Uncertainty sampling:
+Settles, Burr. Active learning literature survey. University of Wisconsin-Madison Department of Computer Sciences, 2009.
+
+Uncertainty sampling with diversity consideration (BADGE algorithm):
+J. T. Ash, C. Zhang, A. Krishnamurthy, J. Langford, and A. Agarwal. Deep Batch Active Learning by Diverse, Uncertain Gradient Lower Bounds. In Int. Conf. Learn. Represent., 2020.
 
 ## Scikit ActiveML
 
@@ -83,13 +88,11 @@ Therefore, we need to adapt our setup to fit this API.
 
 Note that there are other query strategies, too:
 
-- Margin Sampling: `UncertaintySampling(method="margin", ...)`
-- Least Confidence: `UncertaintySampling(method="least_confidence", ...)`
 - Random: `RandomSampling(...)`
-- Query by Committee: `QueryByCommittee(...)`
+- Margin Sampling: `UncertaintySampling(method="margin_sampling", ...)`
+- Least Confidence: `UncertaintySampling(method="least_confidence", ...)`
 - BADGE: `Badge(...)`
 - And many more!
-
 
 ## Authorship
 
