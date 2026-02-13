@@ -69,7 +69,7 @@ class SimpleCNN(nn.Module):
         num_classes: int,
         in_channels: int = 3,
         base_channels: int = 32,  # number of channels @ 1st conv layer, 2x & 4x later
-        classifier_hidden: int = 256,
+        classifier_hidden: int = 256,  # hidden dim of classifier head (feature vector size)
         classifier_dropout: float = 0.3,
     ) -> None:
         super().__init__()
@@ -105,15 +105,27 @@ class SimpleCNN(nn.Module):
             nn.Linear(classifier_hidden, num_classes),
         )
 
-    def forward(self, x: torch.Tensor, feature_vector: bool = False) -> torch.Tensor:
+    def forward(
+        self,
+        x: torch.Tensor,
+        return_embeddings: bool = False,
+    ) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor]:
         x = self.features(x)
         feat = self.projection(x)  # (B, classifier_hidden)
-
-        if feature_vector:
-            return feat
-
         logits = self.classifier(feat)  # (B, num_classes)
+
+        if return_embeddings:
+            return logits, feat
+
         return logits
+
+    @property
+    def num_classes(self) -> int:
+        return int(self.classifier[-1].out_features)
+
+    @property
+    def num_features(self) -> int:
+        return int(self.classifier[-1].in_features)
 
 
 def save_model(
