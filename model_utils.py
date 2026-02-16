@@ -127,6 +127,10 @@ class SimpleCNN(nn.Module):
     def num_features(self) -> int:
         return int(self.classifier[-1].in_features)
 
+    @property
+    def size(self) -> int:
+        return sum(p.numel() for p in self.parameters() if p.requires_grad)
+
 
 def save_model(
     path: str | Path,

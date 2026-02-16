@@ -17,6 +17,8 @@ import matplotlib.pyplot as plt
 IMG_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp"}
 IMAGENET_MEAN = (0.485, 0.456, 0.406)
 IMAGENET_STD  = (0.229, 0.224, 0.225)
+IMAGE_MIN_SIZE = 64
+
 
 def resize_min_side(img: Image.Image, min_side: int = 64) -> Image.Image:
     """Resize so that min(width, height) == min_side, keeping aspect ratio."""
@@ -382,3 +384,21 @@ def visualize_batch(
     if title:
         plt.subplots_adjust(top=0.90)
     plt.show()
+
+
+# Transforms
+train_transform = T.Compose([
+    T.Resize((IMAGE_MIN_SIZE, IMAGE_MIN_SIZE)),
+    T.RandomApply([T.RandomRotation(degrees=15)], p=0.7),
+    T.RandomApply([T.RandomAffine(degrees=0, translate=(0.10, 0.10))], p=0.7),
+    T.RandomHorizontalFlip(p=0.5),
+    T.ToTensor(),
+    T.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
+])
+
+
+eval_transform = T.Compose([
+    T.Resize((IMAGE_MIN_SIZE, IMAGE_MIN_SIZE)),
+    T.ToTensor(),
+    T.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
+])

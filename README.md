@@ -46,9 +46,10 @@ Once the environment is set up, first, you need to download and extract the data
 
 Then, you can start using the main notebooks and scripts:
 
-- [`active_learning.ipynb`](./active_learning.ipynb): main notebook with the active learning loop using `scikit-activeml`.
+- [`active_learning.ipynb`](./active_learning.ipynb): main notebook with the active learning loop and experiments.
 - [`model_utils.py`](./model_utils.py): model definition and training/evaluation functions.
-- [`data_utils.py`](./data_utils.py): auxiliary functions related to data processing.
+- [`data_utils.py`](./data_utils.py): data processing functions, e.g., loading the dataset and creating the initial labeled/unlabeled splits.
+- [`active_ml_utils.py`](./active_ml_utils.py): active learning functions, e.g., computing the next candidates to label.
 
 ## Active Learning in a Nutshell
 
