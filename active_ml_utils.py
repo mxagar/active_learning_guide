@@ -51,7 +51,7 @@ class TorchClassifierWrapper(SkactivemlClassifier):
     def __init__(
         self,
         model: torch.nn.Module,
-        pool_ds,
+        pool_ds: CustomDataset,
         batch_size: int = 16,
         missing_label=MISSING_LABEL_INT,
         classes=None,
