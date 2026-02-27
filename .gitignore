@@ -211,3 +211,6 @@ data/flowers
 
 # Artifacts
 runs/
+
+# Hidden
+.DS_Store
