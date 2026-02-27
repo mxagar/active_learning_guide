@@ -1,6 +1,10 @@
 # Active Learning Guide
 
-This is my small guide (& compilation of examples) for [active learning](https://en.wikipedia.org/wiki/Active_learning):
+This is my small guide (& evaluation) of [active learning](https://en.wikipedia.org/wiki/Active_learning).
+
+Check [my related blog post](https://mikelsagardia.io/posts/).
+
+More details about the experiments:
 
 - Library used: [`scikit-activeml`](https://github.com/scikit-activeml/scikit-activeml).
 - Datasets used: [Kaggle Flowers Dataset](https://www.kaggle.com/datasets/imsparsh/flowers-dataset), classification of 5 types of flowers &mdash; training split:
@@ -17,7 +21,7 @@ Table of contents:
   - [Setup](#setup)
   - [How to Use this Guide](#how-to-use-this-guide)
   - [Active Learning in a Nutshell](#active-learning-in-a-nutshell)
-  - [Scikit ActiveML](#scikit-activeml)
+  - [About Scikit ActiveML](#about-scikit-activeml)
   - [Authorship](#authorship)
 
 ## Setup
@@ -53,30 +57,11 @@ Then, you can start using the main notebooks and scripts:
 
 ## Active Learning in a Nutshell
 
-Uncertainty sampling:
-[Active Learning Literature Survey (Settles, 2010)](https://burrsettles.com/pub/settles.activelearning.pdf)
-
-Uncertainty sampling with diversity consideration (BADGE algorithm).
-Diversity-based methods help when the pool embedding space contains a meaningful structure, e.g., when the data is well clustered.
-[BADGE: Deep Batch Active Learning by Diverse, Uncertain Gradient Lower Bounds (Ash et al., 2020)](https://arxiv.org/abs/1906.03671)
-
-[A Survey of Deep Active Learning (Ren at al., 2020)](https://arxiv.org/abs/2009.00236)
-Many early AL successes were shown in small-scale or classical ML settings. In deep learning, especially with modern architectures, random sampling is often surprisingly competitive.
-
-In fact, in my experience, I have found that ... random sampling work really well.
-
-Literature says it doesn't always work, but it can be a good starting point for many problems:
-
-- Task too easy to learn (e.g., very distinct class images): If the model can quickly learn the task with a small number of labeled samples, then active learning might not provide significant benefits over random sampling, because almost any sample provides useful information to the model.
-- The model's uncertainty estimates might not be reliable, especially in the early stages of training when the model is not well-calibrated.
-- The data distribution might be such that the most uncertain samples are not actually the most informative ones for improving the model's performance.
-- The model might be strong and high-capacity, learning the task well even with random sampling, thus reducing the potential benefits of active learning.
-- On simple tasks, AL methods converge to random sampling, as the model quickly learns the task and all samples become equally informative.
-- High data redundancy: dataset is already well clustered, random sampling already spreads across clusters.
 
 
+For more details, check [my related blog post](https://mikelsagardia.io/posts/).
 
-## Scikit ActiveML
+## About Scikit ActiveML
 
 [`scikit-activeml`](https://github.com/scikit-activeml/scikit-activeml) requires us to define a query strategy, which is a class that implements the logic for selecting the most informative samples to label. Then, we pass the dataset and the classifier to the query:
 
