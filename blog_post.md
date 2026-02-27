@@ -26,9 +26,15 @@ Title: Does Active Learning Really Work in Deep Learning?
 Subtitle: Not Always, But It Can Still Be a Better Guess than Random Sampling
 -->
 
+<p align="center">
+<img src="./assets/mario-mendez-fw7sKxSg5Vs-unsplash.jpg" alt="Some blueberries hanging from a branch." width="1000"/>
+<small style="color:grey">
+Some blueberries hanging from a branch waiting to be picked. Which ones would you choose?
+Photo by <a href="https://unsplash.com/@m_mendez_ix">Mario Mendez</a> on <a href="https://unsplash.com/photos/blue-berries-in-tilt-shift-lens-fw7sKxSg5Vs">Unsplash</a>.</small>
+</p>
 
-Mario Mendez
-https://unsplash.com/photos/blue-berries-in-tilt-shift-lens-fw7sKxSg5Vs
+
+
 
 <div style="height: 20px;"></div>
 <div align="center" style="border: 1px solid #e4f312ff; background-color: #fcd361b9; padding: 1em; border-radius: 6px;">
@@ -98,6 +104,14 @@ Note that there are other query strategies, too:
 - And many more!
 
 ## Experiments
+
+
+<p align="center">
+<img src="./assets/performance_benchmark.png" alt="Active Learning Methods Comparison." width="1000"/>
+<small style="color:grey">
+Performance comparison of different active learning methods: random sampling, maximum entropy sampling, least confident sampling, margin sampling, and BADGE. The x-axis shows the number of labeled samples, and the y-axis shows the model's accuracy on a test set. In this case, random sampling performs surprisingly well, while the other methods do not show significant improvements over random sampling.
+</small>
+</p>
 
 
 ## Conclusions
