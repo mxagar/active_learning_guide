@@ -53,12 +53,12 @@ class TorchClassifierWrapper(SkactivemlClassifier):
         model: torch.nn.Module,
         pool_ds: CustomDataset,
         batch_size: int = 16,
-        missing_label=MISSING_LABEL_INT,
-        classes=None,
-        device=None,
+        missing_label: int = MISSING_LABEL_INT,
+        classes: Optional[np.ndarray] = None,
+        device: Optional[str | torch.device] = None,
         num_workers: int = 0,
         pin_memory: bool = False,
-        random_state=None,
+        random_state: Optional[int] = None,
         verbose: bool = False,
     ):
         self.model = model
@@ -161,15 +161,15 @@ class TorchClassifierWrapper(SkactivemlClassifier):
 
 
 def compute_next_candidates(
-    model,
-    pool_ds,
+    model: torch.nn.Module,
+    pool_ds: CustomDataset,
     query_size: int,
     method: SearchStrategy = "entropy",
     seed: int = 42,
     batch_size: int = 128,
     classes: Optional[np.ndarray] = None,
     missing_label: int = -1,
-    device=None,
+    device: Optional[torch.device | str] = None,
     num_workers: int = 0,
     pin_memory: bool = True,
     verbose: bool = False,
@@ -288,10 +288,10 @@ def transfer_candidates_idx(
 
 
 def plot_embeddings_2d(
-    model,
-    paths: list,
-    labels: list,
-    classe_names: list,
+    model: torch.nn.Module,
+    paths: list[str],
+    labels: list[int],
+    classe_names: list[str],
     train_idx: list[int],
     pool_idx: list[int],
     selected_idx: list[int],
@@ -299,7 +299,7 @@ def plot_embeddings_2d(
     method: str = "umap",
     batch_size: int = 64,
     device: str = "cuda" if torch.cuda.is_available() else "cpu",
-    figsize: tuple = (14, 10),
+    figsize: tuple[int, int] = (14, 10),
     save_path: Optional[str] = None,
     title: Optional[str] = None,
 ) -> None:
@@ -448,15 +448,15 @@ def plot_embeddings_2d(
 
 def evaluate_active_learning(
     # Data components
-    paths: list,
-    labels: list,
-    classe_names: list,
+    paths: list[str],
+    labels: list[int],
+    classe_names: list[str],
     initial_train_idx: list[int],
     val_idx: list[int],
     test_idx: list[int],
     initial_pool_idx: list[int],
-    train_transform,
-    eval_transform,
+    train_transform: object,
+    eval_transform: object,
     
     # Active learning parameters
     extension_ratio: float = 0.05,
