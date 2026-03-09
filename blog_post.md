@@ -86,7 +86,7 @@ In each subsequent iteration, the model trained on the already labeled set $L$ r
 
 The selection strategy can depend on several factors, but commonly the model outputs are part of the process. Considering a classification problem, the model typically outputs a class probability distribution $p(y|x)$ for a sample $x$, where $y \in \{1, ..., K\}$ is the predicted class. 
 
-**Random Sampling**
+**Random Sampling** is the simplest strategy, where we randomly select samples from the unlabeled pool $U$ to label. This serves as a baseline for comparison with more sophisticated methods.
 
 **Entropy-based Uncertainty Sampling**
 
@@ -155,6 +155,105 @@ Note that there are other query strategies, too:
 - Least Confidence: `UncertaintySampling(method="least_confidence", ...)`
 - BADGE: `Badge(...)`
 - And many more!
+
+
+
+```python
+class TorchClassifierWrapper(SkactivemlClassifier):
+    def __init__(
+        self,
+        model: torch.nn.Module,
+        pool_ds: CustomDataset,
+        batch_size: int = 16,
+        missing_label: int = MISSING_LABEL_INT,
+        classes: Optional[np.ndarray] = None,
+        device: Optional[str | torch.device] = None,
+        num_workers: int = 0,
+        pin_memory: bool = False,
+        random_state: Optional[int] = None,
+        verbose: bool = False,
+    ):
+        self.model = model
+        self.pool_ds = pool_ds
+        self.batch_size = batch_size
+        self.device = torch.device(device if device is not None else next(model.parameters()).device)
+        self.num_workers = num_workers
+        self.pin_memory = pin_memory
+        self.verbose = verbose
+        self.num_classes = self.model.num_classes
+        self.num_features = self.model.num_features
+        if classes is not None:
+            self.classes_ = classes
+        else:
+            self.classes_ = np.arange(self.num_classes)
+        super().__init__(classes=self.classes_, missing_label=missing_label, random_state=random_state)
+
+    def _to_indices(self, X: np.ndarray | list[int]) -> list[int]:
+        idx = np.asarray(X).reshape(-1).astype(int)
+        if len(idx) > 0 and (idx.min() < 0 or idx.max() >= len(self.pool_ds)):
+            raise IndexError(f"Some indices in X are out of bounds for pool_ds.")
+        return idx.tolist()
+
+    def _prepare_loader(self, X: np.ndarray | list[int]) -> DataLoader:
+        idx = self._to_indices(X)        
+        subset = Subset(self.pool_ds, idx)
+        loader = DataLoader(
+            subset,
+            batch_size=self.batch_size,
+            shuffle=False,
+            num_workers=self.num_workers,
+            pin_memory=self.pin_memory,
+            drop_last=False,
+        )
+        return loader
+
+    @torch.no_grad()
+    def predict_proba(
+        self,
+        X: np.ndarray | list[int],
+        return_embeddings: bool = False,
+    ) -> np.ndarray | tuple[np.ndarray, np.ndarray]:
+        if len(X) == 0:
+            probas = np.empty((0, self.num_classes), dtype=np.float32)
+            if return_embeddings:
+                emb = np.empty((0, self.num_features), dtype=np.float32)
+                return probas, emb
+            return probas
+
+        loader = self._prepare_loader(X)
+        self.model.eval()
+        probs_all, feats_all = [], []
+
+        for batch in tqdm(loader, disable=not self.verbose, desc="predict_proba"):
+            x = batch[0].to(self.device, non_blocking=True)
+            output = self.model(x, return_embeddings=return_embeddings)
+            logits, feats = None, None
+            if return_embeddings:
+                logits, feats = output  # (B, num_classes), (B, num_features)
+                feats_all.append(feats.detach().cpu().numpy().astype(np.float32))
+            else:
+                logits = output  # (B, num_classes)
+
+            probs = torch.softmax(logits, dim=1).detach().cpu().numpy().astype(np.float32)
+            probs_all.append(probs)
+
+        probas = np.concatenate(probs_all, axis=0)
+
+        if return_embeddings:
+            embs = np.concatenate(feats_all, axis=0) if len(feats_all) else np.empty((0, self.num_features), np.float32)
+            return probas, embs
+
+        return probas
+
+    @torch.no_grad()
+    def compute_embeddings(self, X: np.ndarray | list[int]) -> np.ndarray:
+        return self.predict_proba(X, return_embeddings=True)[1]
+
+    # Keep sklearn-ish signature compatibility
+    # SkactivemlClassifier requires fit to accept sample_weight
+    def fit(self, X, y=None, sample_weight=None):
+        return self
+```
 
 ## Experiments
 
