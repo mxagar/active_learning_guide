@@ -88,10 +88,11 @@ where $x^*$ is the selected sample and $\text{Uniform}(U)$ denotes a function th
 
 $$H(x) = -\sum_{k=1}^K p(y_k|x) \log p(y_k|x).$$
 
-Then, the sample with the highest entropy is selected:
+Then, the next sample with the highest entropy is selected:
 
 $$x^* = \arg\max_{x \in U} H(x).$$
 
+In practice, all the unlabeled samples in $U$ are sorted according to their entropy value (descending), and the first $N$ are selected, being $N$ the number of new samples we'd like to add to the labeled set $L$.
 This method is also known as *maximum entropy sampling*, and it is one of the most popular ones.
 
 **Margin Sampling** &mdash; Instead of considering the whole distribution of class probabilities, margin sampling focuses on the difference between the two most probable classes. Let $p_1$ be the highest class probability for a sample $x$, that is,
@@ -102,40 +103,27 @@ and let $p_2$ be the second highest class probability. The margin is defined as 
 
 $$M(x) = p_1 - p_2.$$
 
-Then, the sample with the smallest margin is selected, as it indicates that the model is uncertain between the top two classes:
+Then, the next sample with the smallest margin is selected, as it indicates that the model is uncertain between the top two classes:
 
 $$x^* = \arg\min_{x \in U} M(x).$$
 
 The idea is very similar to entropy-based sampling.
 
-**Least Confident Sampling** &mdash; C
+**Least Confident Sampling** &mdash; Least confident sampling selects the samples with the *lowest maximum predicted probabilities*; that is, first we compute the *least confident score* for a sample $x$ as
 
-**[BADGE (Batch Active learning by Diverse Gradient Embeddings, by Ash et al., 2020)](https://arxiv.org/abs/1906.03671)** &mdash; D
+$$LC(x) = 1 - \max_{k} p(y_k|x).$$
 
-<div style="height: 20px;"></div>
-<p align="center">── ◆ ──</p>
-<div style="height: 20px;"></div>
+Then, the next sample with the highest least confident score is selected:
 
-Uncertainty sampling:
-[Active Learning Literature Survey (Settles, 2010)](https://burrsettles.com/pub/settles.activelearning.pdf)
+$$x^* = \arg\max_{x \in U} LC(x).$$
 
-Uncertainty sampling with diversity consideration (BADGE algorithm).
-Diversity-based methods help when the pool embedding space contains a meaningful structure, e.g., when the data is well clustered.
-[BADGE: Deep Batch Active Learning by Diverse, Uncertain Gradient Lower Bounds (Ash et al., 2020)](https://arxiv.org/abs/1906.03671)
+Again, the idea is similar to the previous two methods, but it only considers the maximum predicted probability, which can be less informative than considering the whole distribution (entropy) or the top two probabilities (margin).
 
-[A Survey of Deep Active Learning (Ren at al., 2020)](https://arxiv.org/abs/2009.00236)
-Many early AL successes were shown in small-scale or classical ML settings. In deep learning, especially with modern architectures, random sampling is often surprisingly competitive.
+**[BADGE (Batch Active learning by Diverse Gradient Embeddings, by Ash et al., 2020)](https://arxiv.org/abs/1906.03671)** &mdash; The methods presented so far try to select the most uncertain samples, but they don't consider the diversity of the selected samples. In contrast, BADGE is a method that tries to select samples that are both *uncertain and diverse*. The intuitive reason why we'd like to consider *diversity* is that it seems sensible to cover as much feature space as possible, not only the spots where the model is unsure. In order to achieve that, in addition to the predicted probabilities, BADGE requires the embedding or feature vectors of the penultimate layer of the model. I won't go into the mathematical details here, but the main idea is the following:
 
-In fact, in my experience, I have found that ... random sampling work really well.
-
-Literature says it doesn't always work, but it can be a good starting point for many problems:
-
-- Task too easy to learn (e.g., very distinct class images): If the model can quickly learn the task with a small number of labeled samples, then active learning might not provide significant benefits over random sampling, because almost any sample provides useful information to the model.
-- The model's uncertainty estimates might not be reliable, especially in the early stages of training when the model is not well-calibrated.
-- The data distribution might be such that the most uncertain samples are not actually the most informative ones for improving the model's performance.
-- The model might be strong and high-capacity, learning the task well even with random sampling, thus reducing the potential benefits of active learning.
-- On simple tasks, AL methods converge to random sampling, as the model quickly learns the task and all samples become equally informative.
-- High data redundancy: dataset is already well clustered, random sampling already spreads across clusters.
+- A
+- B
+- C
 
 ## Implementation with Scikit ActiveML
 
@@ -280,6 +268,31 @@ class TorchClassifierWrapper(SkactivemlClassifier):
 Performance comparison of different active learning methods: random sampling, maximum entropy sampling, least confident sampling, margin sampling, and BADGE. The x-axis shows the number of labeled samples, and the y-axis shows the model's accuracy on a test set. In this case, random sampling performs surprisingly well, while the other methods do not show significant improvements over random sampling.
 </small>
 </p>
+
+<div style="height: 20px;"></div>
+<p align="center">── ◆ ──</p>
+<div style="height: 20px;"></div>
+
+Uncertainty sampling:
+[Active Learning Literature Survey (Settles, 2010)](https://burrsettles.com/pub/settles.activelearning.pdf)
+
+Uncertainty sampling with diversity consideration (BADGE algorithm).
+Diversity-based methods help when the pool embedding space contains a meaningful structure, e.g., when the data is well clustered.
+[BADGE: Deep Batch Active Learning by Diverse, Uncertain Gradient Lower Bounds (Ash et al., 2020)](https://arxiv.org/abs/1906.03671)
+
+[A Survey of Deep Active Learning (Ren at al., 2020)](https://arxiv.org/abs/2009.00236)
+Many early AL successes were shown in small-scale or classical ML settings. In deep learning, especially with modern architectures, random sampling is often surprisingly competitive.
+
+In fact, in my experience, I have found that ... random sampling work really well.
+
+Literature says it doesn't always work, but it can be a good starting point for many problems:
+
+- Task too easy to learn (e.g., very distinct class images): If the model can quickly learn the task with a small number of labeled samples, then active learning might not provide significant benefits over random sampling, because almost any sample provides useful information to the model.
+- The model's uncertainty estimates might not be reliable, especially in the early stages of training when the model is not well-calibrated.
+- The data distribution might be such that the most uncertain samples are not actually the most informative ones for improving the model's performance.
+- The model might be strong and high-capacity, learning the task well even with random sampling, thus reducing the potential benefits of active learning.
+- On simple tasks, AL methods converge to random sampling, as the model quickly learns the task and all samples become equally informative.
+- High data redundancy: dataset is already well clustered, random sampling already spreads across clusters.
 
 
 ## Conclusions
