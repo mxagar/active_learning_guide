@@ -63,17 +63,7 @@ There are a plethora of methods under the umbrella of Active Learning (AL); in f
 - [Active Learning Literature Survey (Settles, 2010)](https://burrsettles.com/pub/settles.activelearning.pdf)
 - [A Survey of Deep Active Learning (Ren at al., 2020)](https://arxiv.org/abs/2009.00236)
 
-I won't go into all the details here; instead, I prefer to focus on some methods I have worked with and which are available off-the-shelf in the library [`scikit-activeml`](https://github.com/scikit-activeml/scikit-activeml):
-
-- Random Sampling
-- Entropy-based Uncertainty Sampling
-- Margin Sampling
-- Least Confident Sampling
-- BADGE (Batch Active learning by Diverse Gradient Embeddings)
-
-<div style="height: 20px;"></div>
-<p align="center">── ◆ ──</p>
-<div style="height: 20px;"></div>
+I won't try to write another survey here; instead, I prefer to focus on some practical methods I have worked with and which are available off-the-shelf in the library [`scikit-activeml`](https://github.com/scikit-activeml/scikit-activeml), which is one of the most popular ones when it comes to AL.
 
 In general, AL methods try to iteratively identify the most informative samples from an unlabeled pool of data $U$.
 We start by labeling a small subset of samples, which we call $L$, and we train the model with them; that's our first iteration.
@@ -84,17 +74,43 @@ In each subsequent iteration, the model trained on the already labeled set $L$ r
 <small style="color:grey">Active Learning iteratively selects samples to be annotated from an unlabeled pool <i>U</i>. Then, these samples are labeled and added to the training set <i>L</i>. The right figure shows the process in action in a 2D embedding space. If you're not sure what embeddings are, check <a href="https://mikelsagardia.io/blog/diffusion-for-developers.html">this post of mine</a>. Image by the author.</small>
 </p>
 
-The selection strategy can depend on several factors, but commonly the model outputs are part of the process. Considering a classification problem, the model typically outputs a class probability distribution $p(y|x)$ for a sample $x$, where $y \in \{1, ..., K\}$ is the predicted class. 
+The selection strategy is key and it can depend on several factors, but commonly the model outputs are part of the process. Considering a classification problem, the model typically outputs class probabilities $p(y_k|x)$ for a sample $x$, where $y_k \in \{1, ..., K\}$ is one of the $K$ classes.
 
-**Random Sampling** is the simplest strategy, where we randomly select samples from the unlabeled pool $U$ to label. This serves as a baseline for comparison with more sophisticated methods.
+Now, let's have a look at the aforementioned selection methods.
 
-**Entropy-based Uncertainty Sampling**
+**Random Sampling** &mdash; This is the simplest selection strategy: we randomly select samples from the unlabeled pool $U$ to label; in other words, no model information is used. This serves as a *baseline* for comparison with more sophisticated methods. Mathematically, we can express it as
 
-**Margin Sampling**
+$$x^*= \text{Uniform}(U),$$
 
-**Least Confident Sampling**
+where $x^*$ is the selected sample and $\text{Uniform}(U)$ denotes a function that randomly selects a sample from the unlabeled pool $U$.
 
-**[BADGE (Batch Active learning by Diverse Gradient Embeddings, by Ash et al., 2020)](https://arxiv.org/abs/1906.03671)**
+**Entropy-based Uncertainty Sampling** &mdash; The entropy of a prediction can be used to measure how confident a model is; if there is one clearly bigger class probability $p(y_k|x)$, the model is certain of its prediction, whereas more homogeneous $p(y_k|x)$ values denote uncertainty. The goal of this selection method is to select the samples with the highest uncertainty, so that the model learns those samples to end up being more confident. The entropy $H$ of a predicted sample $x$ is defined as 
+
+$$H(x) = -\sum_{k=1}^K p(y_k|x) \log p(y_k|x).$$
+
+Then, the sample with the highest entropy is selected:
+
+$$x^* = \arg\max_{x \in U} H(x).$$
+
+This method is also known as *maximum entropy sampling*, and it is one of the most popular ones.
+
+**Margin Sampling** &mdash; Instead of considering the whole distribution of class probabilities, margin sampling focuses on the difference between the two most probable classes. Let $p_1$ be the highest class probability for a sample $x$, that is,
+
+$$p_1 = \max_{k} p(y_k|x),$$
+
+and let $p_2$ be the second highest class probability. The margin is defined as the difference between these two probabilities:
+
+$$M(x) = p_1 - p_2.$$
+
+Then, the sample with the smallest margin is selected, as it indicates that the model is uncertain between the top two classes:
+
+$$x^* = \arg\min_{x \in U} M(x).$$
+
+The idea is very similar to entropy-based sampling.
+
+**Least Confident Sampling** &mdash; C
+
+**[BADGE (Batch Active learning by Diverse Gradient Embeddings, by Ash et al., 2020)](https://arxiv.org/abs/1906.03671)** &mdash; D
 
 <div style="height: 20px;"></div>
 <p align="center">── ◆ ──</p>
