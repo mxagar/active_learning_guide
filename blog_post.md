@@ -119,15 +119,26 @@ $$x^* = \arg\max_{x \in U} LC(x).$$
 
 Again, the idea is similar to the previous two methods, but it only considers the maximum predicted probability, which can be less informative than considering the whole distribution (entropy) or the top two probabilities (margin).
 
-**[BADGE (Batch Active learning by Diverse Gradient Embeddings, by Ash et al., 2020)](https://arxiv.org/abs/1906.03671)** &mdash; The methods presented so far try to select the most uncertain samples, but they don't consider the diversity of the selected samples. In contrast, BADGE is a method that tries to select samples that are both *uncertain and diverse*. The intuitive reason why we'd like to consider *diversity* is that it seems sensible to cover as much feature space as possible, not only the spots where the model is unsure. In order to achieve that, in addition to the predicted probabilities, BADGE requires the embedding or feature vectors of the penultimate layer of the model. I won't go into the mathematical details here, but the main idea is the following:
+**[BADGE (Batch Active learning by Diverse Gradient Embeddings, by Ash et al., 2020)](https://arxiv.org/abs/1906.03671)** &mdash; The methods presented so far try to select the most uncertain samples, but they don't consider the diversity of the selected ones. In contrast, BADGE is a method that tries to select samples that are both *uncertain and diverse*. The intuitive reason why we'd like to consider *diversity* is that it seems sensible to cover different regions of the data distribution, not only the spots where the model is unsure. In order to achieve that, in addition to the predicted probabilities, BADGE requires the embedding or feature vectors of the penultimate layer of the model. I won't deep dive into all the mathematical details here, but the main idea is the following:
 
-- A
-- B
-- C
+- The labels of the samples in the unlabeled pool $U$ are estimated by the model: $\hat{y} = \arg\max_{k} p(y_k|x)$.
+- The gradient of the last linear layer weights is computed for each sample in $U$ as if it were labeled with its estimated label $\hat{y}$; this gradient is called the *gradient embedding* of the sample. Let $h(x)$ be the function that yields the embedding of the penultimate layer for a sample $x$, and let's assume we are using a cross-entropy loss with a softmax activation; then, the gradient embedding $g(x)$ has this form:
+  $$g(x) = h(x)(p-e_{\hat{y}})^T,$$
+  being $e_{\hat{y}}$ the one-hot encoded vector corresponding to the estimated label $\hat{y}$. This *gradient embedding* $g(x)$ is of shape $(d \times K)$, where $d$ is the dimension of the penultimate layer's output (embedding size) and $K$ is the number of classes. It is a tensor that represents the direction and magnitude of the parameter update that labeling this sample would induce and it captures both the uncertainty and the diversity of the sample.
+- Then, the [K-means++](https://en.wikipedia.org/wiki/K-means%2B%2B) initialization procedure is applied to the gradient embeddings of the samples in $U$. This procedure iteratively selects samples that are far from the already selected ones in the gradient embedding space. The selected samples correspond to well-separated points in that space, which approximates selecting cluster centers without running the full [k-means](https://en.wikipedia.org/wiki/K-means_clustering) clustering algorithm. This way, we select samples that are both uncertain (as they tend to have large gradient norms) and diverse (as their gradient embeddings are spread across the space).
 
 ## Implementation with Scikit ActiveML
 
-[`scikit-activeml`](https://github.com/scikit-activeml/scikit-activeml) requires us to define a query strategy, which is a class that implements the logic for selecting the most informative samples to label. Then, we pass the dataset and the classifier to the query:
+I have prepared a [Github repository](https://github.com/mxagar/active_learning_guide) which contains a mini-project that implements the above methods and runs some experiments with the [Kaggle Flowers Dataset](https://www.kaggle.com/datasets/imsparsh/flowers-dataset) (classification of 5 types of flowers).
+
+As explained in the [repository's README](https://github.com/mxagar/active_learning_guide/blob/main/README.md), the project is structured as follows:
+
+- [`active_learning.ipynb`](./active_learning.ipynb): main notebook with the active learning loop and experiments.
+- [`model_utils.py`](./model_utils.py): model definition and training/evaluation functions.
+- [`data_utils.py`](./data_utils.py): data processing functions, e.g., loading the dataset and creating the initial labeled/unlabeled splits.
+- [`active_ml_utils.py`](./active_ml_utils.py): active learning functions, e.g., computing the next candidates to label.
+
+The library to run all the aforementioned AL methods (and more) is the commonly used [`scikit-activeml`](https://github.com/scikit-activeml/scikit-activeml), which follows the [Scikit-Learn](https://scikit-learn.org/) API conventions. It requires us to define a query strategy, which is a class that implements the logic for selecting the most informative samples to label. Then, we pass the dataset and the classifier to the query:
 
 ```python
 # Instantiate a query strategy, e.g., an entropy-based uncertainty sampling in this case.
@@ -145,7 +156,7 @@ query_idx = query_strategy.query(X, y, clf=my_classifier)
 
 Here, the inputs & outputs are:
 
-- `X` = feature matrix `(n_samples, n_features)`
+- `X` = feature matrix, usually of shape `(n_samples, n_features)`
 - `y` = labels with `-1` for unlabeled samples
 - `clf` = some classifier model that *has* the method `predict_proba(X)`
 - `query_idx` = indices of the samples to label next
@@ -160,7 +171,7 @@ Note that there are other query strategies, too:
 - BADGE: `Badge(...)`
 - And many more!
 
-
+`TorchClassifierWrapper`
 
 ```python
 class TorchClassifierWrapper(SkactivemlClassifier):
