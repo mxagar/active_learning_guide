@@ -155,7 +155,11 @@ As explained in the [repository's README](https://github.com/mxagar/active_learn
     - `plot_embeddings_2d`: function to plot the 2D UMAP embeddings of the samples, colored by several criteria.
     - `evaluate_active_learning`: function to benchmark different AL techniques, which runs the AL loop for each technique and collects the performance metrics for comparison.
 
-The AL selection is implemented in the function `compute_next_candidates`, which is called in the main notebook `active_learning.ipynb` at each iteration of the AL loop. The function takes as input the current model, the pool of unlabeled samples, and the selected query strategy, and returns the indices of the samples to label next. Then, these indices are transferred to the main dataset using the function `transfer_candidates_idx`, which updates the labeled and unlabeled sets accordingly.
+The AL selection is implemented in the function `compute_next_candidates`, which is called in the main notebook `active_learning.ipynb` at each iteration of the AL loop. The function takes as input the current model, the pool of unlabeled samples, and the selected query strategy, and returns the indices of the samples to label next. Then, these indices are transferred to the main dataset using the function `transfer_candidates_idx`, which updates the labeled and unlabeled sets accordingly. A key component in this process is the `TorchClassifierWrapper`, which adapts a PyTorch model to be used for active learning.
+
+<div style="height: 20px;"></div>
+<p align="center">── ◆ ──</p>
+<div style="height: 20px;"></div>
 
 The library to run all the aforementioned AL methods (and more) is the commonly used [`scikit-activeml`](https://github.com/scikit-activeml/scikit-activeml), which follows the [Scikit-Learn](https://scikit-learn.org/) API conventions. It requires us to define a query strategy, which is a class that implements the logic for selecting the most informative samples to label. Then, we pass the dataset and the classifier to the query:
 
@@ -190,7 +194,11 @@ Note that there are other query strategies, too:
 - BADGE: `Badge(...)`
 - And many more!
 
-`TorchClassifierWrapper`
+In the provided code, the adaptation of the PyTorch-based classifier is handled by `TorchClassifierWrapper`:
+
+- During the instantiation of `TorchClassifierWrapper`, we pass a PyTorch `CustomDataset` containing references to all the unlabeled samples in the pool. In addition, we provide the trained PyTorch model.
+- Internally, `TorchClassifierWrapper` creates a PyTorch `DataLoader` for the `CustomDataset`, which expects a list of sample indices to load; this list corresponds exactly to the input vector `X`, which no longer contains the sample features themselves.
+- It also implements the method `predict_proba(X)`, which runs the `DataLoader` accessing to the indices passed in `X`, calls the PyTorch model, and outputs the model predictions (either the class probabilities or the embedding vectors).
 
 ```python
 class TorchClassifierWrapper(SkactivemlClassifier):
@@ -289,7 +297,120 @@ class TorchClassifierWrapper(SkactivemlClassifier):
         return self
 ```
 
+With the adaptation provided by `TorchClassifierWrapper`, we can now use the `scikit-activeml` query strategies with our PyTorch model. The function `compute_next_candidates` implements the logic to compute the next samples to label based on the selected query strategy and `transfer_candidates_idx` handles the transfer of the selected candidate indices to the main/training dataset, updating the labeled and unlabeled sets accordingly:
+
+```python
+def compute_next_candidates(
+    model: torch.nn.Module,
+    pool_ds: CustomDataset,
+    query_size: int,
+    method: SearchStrategy = "entropy",
+    seed: int = 42,
+    batch_size: int = 128,
+    classes: Optional[np.ndarray] = None,
+    missing_label: int = -1,
+    device: Optional[torch.device | str] = None,
+    num_workers: int = 0,
+    pin_memory: bool = True,
+    verbose: bool = False,
+) -> list[int]:
+    if method not in {"random", "least_confident", "margin_sampling", "entropy", "badge", "coreset"}:
+        raise ValueError(f"Unsupported method: {method}")
+
+    n_pool = len(pool_ds)
+    if n_pool == 0:
+        return []
+
+    # X: dummy "feature matrix" = pool indices (n_pool, 1)
+    X = np.arange(n_pool, dtype=int).reshape(-1, 1)
+
+    # y: all missing labels (assume pool is unlabeled)
+    y = np.full(n_pool, missing_label, dtype=int)
+
+    # clf: wrapper provides predict_proba(X)
+    clf = TorchClassifierWrapper(
+        model=model,
+        pool_ds=pool_ds,
+        batch_size=batch_size,
+        classes=classes,
+        missing_label=missing_label,
+        device=device,
+        num_workers=num_workers,
+        pin_memory=pin_memory,
+        random_state=seed,
+        verbose=verbose,
+    )
+
+    query_strategy = None
+    candidates_idx = []
+    k = min(query_size, n_pool)
+
+    if method == "random":
+        query_strategy = RandomSampling(
+            missing_label=missing_label,
+            random_state=seed
+        )
+        candidates_idx_array = query_strategy.query(X=X, y=y, batch_size=k, candidates=None)
+        candidates_idx = candidates_idx_array.tolist()
+
+    if method in {"least_confident", "margin_sampling", "entropy"}:
+        query_strategy = UncertaintySampling(
+            method=method,
+            missing_label=missing_label,
+            random_state=seed,
+        )
+        # Important: pass candidates=None to query from all unlabeled samples
+        candidates_idx_array = query_strategy.query(
+            X=X,
+            y=y,
+            clf=clf,
+            batch_size=k,
+            candidates=None,  # Explicitly set to query all samples marked as missing_label
+            fit_clf=False,  # Do NOT train any sklearn classifier
+        )
+        candidates_idx = candidates_idx_array.tolist()
+
+    elif method == "badge":
+        query_strategy = Badge(
+            clf_embedding_flag_name="return_embeddings",  # Matches your predict_proba arg
+            missing_label=missing_label,
+            random_state=seed,
+        )
+        candidates_idx = query_strategy.query(X=X, y=y, clf=clf, batch_size=k, candidates=None, fit_clf=False)
+        candidates_idx = [int(idx) for idx in candidates_idx]
+
+    # WARNING: candidates_idx are pool-local indices (0 to len(pool_ds)-1),
+    # NOT global indices into the original dataset!
+    return candidates_idx
+
+
+def transfer_candidates_idx(
+    train_idx: list[int],
+    pool_idx: list[int],
+    candidates_idx: np.ndarray | list[int],
+) -> tuple[list[int], list[int], list[int]]:
+    if len(pool_idx) == 0:
+        return train_idx, pool_idx, []
+
+    cand = np.asarray(candidates_idx, dtype=int).reshape(-1)
+    if cand.size == 0:
+        return train_idx, pool_idx, []
+
+    # Convert pool-local indices -> global indices
+    candidates_global_idx = [pool_idx[i] for i in cand.tolist()]
+
+    # Add to training set (global)
+    train_new_idx = list(train_idx) + candidates_global_idx
+
+    # Remove from pool (global)
+    remove_set = set(candidates_global_idx)
+    pool_new_idx = [g for g in pool_idx if g not in remove_set]
+
+    return train_new_idx, pool_new_idx, candidates_global_idx
+```
+
 ## Experiments
+
 
 
 <p align="center">

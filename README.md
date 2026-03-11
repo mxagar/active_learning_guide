@@ -64,7 +64,7 @@ Then, you can start using the main notebook and scripts. In the following, I bri
     - `plot_embeddings_2d`: function to plot the 2D UMAP embeddings of the samples, colored by several criteria.
     - `evaluate_active_learning`: function to benchmark different AL techniques, which runs the AL loop for each technique and collects the performance metrics for comparison.
 
-The AL selection is implemented in the function `compute_next_candidates`, which is called in the main notebook `active_learning.ipynb` at each iteration of the AL loop. The function takes as input the current model, the pool of unlabeled samples, and the selected query strategy, and returns the indices of the samples to label next. Then, these indices are transferred to the main dataset using the function `transfer_candidates_idx`, which updates the labeled and unlabeled sets accordingly.
+The AL selection is implemented in the function `compute_next_candidates`, which is called in the main notebook `active_learning.ipynb` at each iteration of the AL loop. The function takes as input the current model, the pool of unlabeled samples, and the selected query strategy, and returns the indices of the samples to label next. Then, these indices are transferred to the main dataset using the function `transfer_candidates_idx`, which updates the labeled and unlabeled sets accordingly. A key component in this process is the `TorchClassifierWrapper`, which adapts a PyTorch model to be used for active learning.
 
 ## Active Learning in a Nutshell
 
@@ -105,7 +105,12 @@ Note that there are other query strategies, too:
 - BADGE: `Badge(...)`
 - And many more!
 
-`TorchClassifierWrapper`
+In the provided code, the adaptation of the PyTorch-based classifier is handled by `TorchClassifierWrapper`:
+
+- During the instantiation of `TorchClassifierWrapper`, we pass a PyTorch `CustomDataset` containing references to all the unlabeled samples in the pool. In addition, we provide the trained PyTorch model.
+- Internally, `TorchClassifierWrapper` creates a PyTorch `DataLoader` for the `CustomDataset`, which expects a list of sample indices to load; this list corresponds exactly to the input vector `X`, which no longer contains the sample features themselves.
+- It also implements the method `predict_proba(X)`, which runs the `DataLoader` accessing to the indices passed in `X`, calls the PyTorch model, and outputs the model predictions (either the class probabilities or the embedding vectors).
+
 
 ## Experiments and Results
 
@@ -117,4 +122,3 @@ Note that there are other query strategies, too:
 
 Mikel Sagardia, 2026.  
 No guarantees.
-
