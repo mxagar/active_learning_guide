@@ -317,38 +317,26 @@ Performance comparison of different active learning methods: random sampling, ma
 </small>
 </p>
 
-Decieving, isn't it? 
+Decieving, isn't it? It seems that there is no difference between the AL methods and the baseline: random sampling. So why all the hustle?
 
-Now, many criticisms might arise which question the experimental setup:
+Now, many criticisms which question the experimental setup might arise:
 
-- A
-- B
-- C
-- ...
-
-... and all of them are fair and worth investigating. However, the.
-
-Uncertainty sampling:
-[Active Learning Literature Survey (Settles, 2010)](https://burrsettles.com/pub/settles.activelearning.pdf)
-
-Uncertainty sampling with diversity consideration (BADGE algorithm).
-Diversity-based methods help when the pool embedding space contains a meaningful structure, e.g., when the data is well clustered.
-[BADGE: Deep Batch Active Learning by Diverse, Uncertain Gradient Lower Bounds (Ash et al., 2020)](https://arxiv.org/abs/1906.03671)
-
-[A Survey of Deep Active Learning (Ren at al., 2020)](https://arxiv.org/abs/2009.00236)
-Many early AL successes were shown in small-scale or classical ML settings. In deep learning, especially with modern architectures, random sampling is often surprisingly competitive.
-
-In fact, in my experience, I have found that ... random sampling work really well.
-
-Literature says it doesn't always work, but it can be a good starting point for many problems:
-
-- Task too easy to learn (e.g., very distinct class images): If the model can quickly learn the task with a small number of labeled samples, then active learning might not provide significant benefits over random sampling, because almost any sample provides useful information to the model.
+- Are the sizes correctly chosen? That is: dataset size, initial training set size, query size, and number of iterations, etc.
+- Is the task correctly chosen? That is: image sizes, classification difficulty, training hyperparameters, etc.
+- The task is maybe too easy to learn (e.g., very distinct class images): If the model can quickly learn the task with a small number of labeled samples, then active learning might not provide significant benefits over random sampling, because almost any sample provides useful information to the model.
 - The model's uncertainty estimates might not be reliable, especially in the early stages of training when the model is not well-calibrated.
 - The data distribution might be such that the most uncertain samples are not actually the most informative ones for improving the model's performance.
 - The model might be strong and high-capacity, learning the task well even with random sampling, thus reducing the potential benefits of active learning.
 - On simple tasks, AL methods converge to random sampling, as the model quickly learns the task and all samples become equally informative.
 - High data redundancy: dataset is already well clustered, random sampling already spreads across clusters.
+- ...
 
+And all of them are fair and worth investigating. However, that doesn't change the fact that **boosting our training performance with AL techniques is not straightforward**. In fact, similar effects have been already observed in the literature, especially in deep learning settings, where random sampling is often surprisingly competitive [(Ren at al., 2020)](https://arxiv.org/abs/2009.00236).
+
+I personally have applied AL several times and I was not sure whether it really provided a significant boost in performance compared to random sampling. It is indeed difficuly to evaluate that, because we usually don't have the labels. However, the bottomline is the following:
+
+> Even though AL techniques are designed to select the most informative samples, they don't always outperform random sampling in practice, especially in deep learning settings. 
+However, using AL techniques can still provide a good educated guess, and they are rather easy to implement and integrate into the training pipeline.
 
 ## Conclusions
 
