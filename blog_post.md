@@ -136,7 +136,7 @@ As explained in the [repository's README](https://github.com/mxagar/active_learn
 - [`active_learning.ipynb`](./active_learning.ipynb): main notebook with the active learning loop and experiments. This is the entry-point for the user to learn about AL interactively. The notebook uses three helper modules, listed below.
 - [`model_utils.py`](./model_utils.py): model definition and training/evaluation functions. It contains:
     - `TrainConfig`: datacass which defines the training hyperparameters.
-    - `SimpleCNN`: simple convolutional neural network for image classification.
+    - `SimpleCNN`: simple convolutional neural network (CNN) consisting of 2.2 million parameters for image classification.
     - `save_model` and `load_model`: utility functions to save and load the model weights.
     - `train_one_epoch` and `train`: functions to train the model for one epoch or multiple epochs, respectively.
     - `validate` and `evaluate`: functions to evaluate the model on a validation or test set, respectively.
@@ -411,12 +411,52 @@ def transfer_candidates_idx(
 
 ## Experiments... and a Surprising Result?
 
-In the final section of [`active_learning.ipynb`]()
+In the final section of [`active_learning.ipynb`](https://github.com/mxagar/active_learning_guide/blob/main/active_learning.ipynb) I have implemented two functions:
+
+- `evaluate_active_learning` runs the AL loop for a selected AL method step by step selecting new samples and re-training the model,
+- and `run_multiple_experiments` can run the previous function for several AL methods and collects the performance metrics for comparison.
+
+With them, I have conducted experiments to benchmark the AL selection methods introduced in previous sections: I have measured how the performance of a classifier evolves as more samples are iteratively added to the training set, simulating the typical AL process.
+
+As already introduced, I have used the [Kaggle Flowers Dataset](https://www.kaggle.com/datasets/imsparsh/flowers-dataset), with the following experimental setup:
+
+- Task: classification of 5 types of flowers (daisy, dandelion, rose, sunflower, and tulip).
+- Input images: resized to 64x64x3 pixels for faster training; random affine transformations applied to the train split for data augmentation.
+- Model: a simple, not pre-trained convolutional neural network (CNN) with 2.2 million parameters.
+- Training hyperparameters: 30 epochs per AL iteration; batch size of 64; learning rate of 0.001; AdamW optimizer and validation accuracy as the main performance decision metric.
+- Initial training set (iteration 0): 137 samples; initial labeled data used to train the first model.
+- Validation set: 276 samples; kept fixed across iterations to evaluate the model's performance during training.
+- Test set: 276 samples; kept fixed across iterations to evaluate the final performance of the model after each AL iteration.
+- Pool set: 2057 samples; *"unlabeled"* samples available for selection.
+- Query size: 3% of the total dataset size (2746 samples), which corresponds to 82 samples. At each iteration, we select 82 new samples from the pool to label and add to the training set.
+- Max AL iterations: 20 iterations, which means that at most 1640 samples will be labeled and added to the training set by the end of the AL process.
+- Tested AL methods: random sampling, maximum entropy sampling, least confident sampling, margin sampling, and BADGE.
+
+Of course, even though the pool samples are considered *"unlabeled"* for the AL process, they are actually labeled in the dataset, which allows us to evaluate the performance of the model on them.
+
+<p align="center">
+<img src="./assets/validation_batch.png" alt="A validation batch of flower images." width="1000"/>
+<small style="color:grey">
+A validation batch of flower images from the <a href="https://www.kaggle.com/datasets/imsparsh/flowers-dataset">Kaggle Flowers Dataset</a>. The dataset contains 5 classes of flowers: daisy, dandelion, rose, sunflower, and tulip. The images are resized to 64x64 pixels for faster training.
+</small>
+</p>
+
+The experiment for each AL method follows the same iterative procedure. At iteration $t in \{1, ..., 20\}$:
+
+- We train a model from scratch using the current training set.
+- We evaluate the model on the test set.
+- We select new samples from the pool using the chosen query/selection strategy.
+- Move the selected samples from the pool to the training set.
+- The process is repeated until: a maximum number of iterations is reached (20 iterations), or the pool becomes empty.
+
+Note that the model is re-trained from scratch at every iteration. This avoids bias introduced by incremental fine-tuning and ensures that performance only depends on the current training set.
+
+
 
 <p align="center">
 <img src="./assets/embeddings_2d_random_iter_0.png" alt="Embeddings of flower images samples in 2D." width="1000"/>
 <small style="color:grey">
-
+2D embeddings of flower images from the <a href="https://www.kaggle.com/datasets/imsparsh/flowers-dataset">Kaggle Flowers Dataset</a>. The embeddings are obtained from the penultimate layer of the <i>SimpleCNN</i> model and mapped to 2D using <a href="https://umap-learn.readthedocs.io/en/latest/">UMAP</a>. Each point represents an image, and colors indicate different classes, and point geometries represent the sample status: small transparent circles for unlabeled samples, bigger opaque circles for labeled ones, ans stars for selected ones. This snapshot is the initial iteration where <i>random sampling</i> was used.
 </small>
 </p>
 
