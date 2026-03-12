@@ -111,12 +111,27 @@ In the provided code, the adaptation of the PyTorch-based classifier is handled 
 - Internally, `TorchClassifierWrapper` creates a PyTorch `DataLoader` for the `CustomDataset`, which expects a list of sample indices to load; this list corresponds exactly to the input vector `X`, which no longer contains the sample features themselves.
 - It also implements the method `predict_proba(X)`, which runs the `DataLoader` accessing to the indices passed in `X`, calls the PyTorch model, and outputs the model predictions (either the class probabilities or the embedding vectors).
 
-
 ## Experiments and Results
 
+Check [my related blog post](https://mikelsagardia.io/posts/) for a complete experiment setup description; in short:
 
+- Task: classification of 5 types of flowers (daisy, dandelion, rose, sunflower, and tulip).
+- Input images: resized to 64x64x3 pixels for faster training; random affine transformations applied to the train split for data augmentation.
+- Model: a simple, not pre-trained convolutional neural network (CNN) with 2.2 million parameters.
+- Training hyperparameters: 30 epochs per AL iteration; batch size of 64; learning rate of 0.001; AdamW optimizer and validation accuracy as the main performance decision metric.
+- Initial training set (iteration 0): 137 samples; initial labeled data used to train the first model.
+- Validation set: 276 samples; kept fixed across iterations to evaluate the model's performance during training.
+- Test set: 276 samples; kept fixed across iterations to evaluate the final performance of the model after each AL iteration.
+- Pool set: 2057 samples; *"unlabeled"* samples available for selection.
+- Query size: 3% of the total dataset size (2746 samples), which corresponds to 82 samples. At each iteration, we select 82 new samples from the pool to label and add to the training set.
+- Max AL iterations: 20 iterations, which means that at most 1640 samples will be labeled and added to the training set by the end of the AL process.
+- Tested AL methods: random sampling, maximum entropy sampling, least confident sampling, margin sampling, and BADGE.
 
+The following figure shows performance comparison of different active learning methods: random sampling, maximum entropy sampling, least confident sampling, margin sampling, and BADGE. The X-axis shows the number of labeled samples, and the Y-axis shows the model's accuracy on the test set. In the example, random sampling performs surprisingly well, while the other methods do not show significant improvements over random sampling.
 
+Check [my related blog post](https://mikelsagardia.io/posts/) for my discussion :smile:
+
+![Performance benchmarking results](./assets/performance_benchmark.png)
 
 ## Authorship
 

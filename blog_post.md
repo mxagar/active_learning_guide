@@ -200,7 +200,10 @@ In the provided code, the adaptation of the PyTorch-based classifier is handled 
 - Internally, `TorchClassifierWrapper` creates a PyTorch `DataLoader` for the `CustomDataset`, which expects a list of sample indices to load; this list corresponds exactly to the input vector `X`, which no longer contains the sample features themselves.
 - It also implements the method `predict_proba(X)`, which runs the `DataLoader` accessing to the indices passed in `X`, calls the PyTorch model, and outputs the model predictions (either the class probabilities or the embedding vectors).
 
+:point_right: Check [`TorchClassifierWrapper` in `active_ml_utils.py`](https://github.com/mxagar/active_learning_guide/blob/main/active_ml_utils.py#L41).
+
 ```python
+# https://github.com/mxagar/active_learning_guide/blob/main/active_ml_utils.py#L41
 class TorchClassifierWrapper(SkactivemlClassifier):
     def __init__(
         self,
@@ -215,91 +218,18 @@ class TorchClassifierWrapper(SkactivemlClassifier):
         random_state: Optional[int] = None,
         verbose: bool = False,
     ):
-        self.model = model
-        self.pool_ds = pool_ds
-        self.batch_size = batch_size
-        self.device = torch.device(device if device is not None else next(model.parameters()).device)
-        self.num_workers = num_workers
-        self.pin_memory = pin_memory
-        self.verbose = verbose
-        self.num_classes = self.model.num_classes
-        self.num_features = self.model.num_features
-        if classes is not None:
-            self.classes_ = classes
-        else:
-            self.classes_ = np.arange(self.num_classes)
-        super().__init__(classes=self.classes_, missing_label=missing_label, random_state=random_state)
-
-    def _to_indices(self, X: np.ndarray | list[int]) -> list[int]:
-        idx = np.asarray(X).reshape(-1).astype(int)
-        if len(idx) > 0 and (idx.min() < 0 or idx.max() >= len(self.pool_ds)):
-            raise IndexError(f"Some indices in X are out of bounds for pool_ds.")
-        return idx.tolist()
-
-    def _prepare_loader(self, X: np.ndarray | list[int]) -> DataLoader:
-        idx = self._to_indices(X)        
-        subset = Subset(self.pool_ds, idx)
-        loader = DataLoader(
-            subset,
-            batch_size=self.batch_size,
-            shuffle=False,
-            num_workers=self.num_workers,
-            pin_memory=self.pin_memory,
-            drop_last=False,
-        )
-        return loader
-
-    @torch.no_grad()
-    def predict_proba(
-        self,
-        X: np.ndarray | list[int],
-        return_embeddings: bool = False,
-    ) -> np.ndarray | tuple[np.ndarray, np.ndarray]:
-        if len(X) == 0:
-            probas = np.empty((0, self.num_classes), dtype=np.float32)
-            if return_embeddings:
-                emb = np.empty((0, self.num_features), dtype=np.float32)
-                return probas, emb
-            return probas
-
-        loader = self._prepare_loader(X)
-        self.model.eval()
-        probs_all, feats_all = [], []
-
-        for batch in tqdm(loader, disable=not self.verbose, desc="predict_proba"):
-            x = batch[0].to(self.device, non_blocking=True)
-            output = self.model(x, return_embeddings=return_embeddings)
-            logits, feats = None, None
-            if return_embeddings:
-                logits, feats = output  # (B, num_classes), (B, num_features)
-                feats_all.append(feats.detach().cpu().numpy().astype(np.float32))
-            else:
-                logits = output  # (B, num_classes)
-
-            probs = torch.softmax(logits, dim=1).detach().cpu().numpy().astype(np.float32)
-            probs_all.append(probs)
-
-        probas = np.concatenate(probs_all, axis=0)
-
-        if return_embeddings:
-            embs = np.concatenate(feats_all, axis=0) if len(feats_all) else np.empty((0, self.num_features), np.float32)
-            return probas, embs
-
-        return probas
-
-    @torch.no_grad()
-    def compute_embeddings(self, X: np.ndarray | list[int]) -> np.ndarray:
-        return self.predict_proba(X, return_embeddings=True)[1]
-
-    # Keep sklearn-ish signature compatibility
-    # SkactivemlClassifier requires fit to accept sample_weight
-    def fit(self, X, y=None, sample_weight=None):
-        return self
+        ...
 ```
 
 With the adaptation provided by `TorchClassifierWrapper`, we can now use the `scikit-activeml` query strategies with our PyTorch model. The function `compute_next_candidates` implements the logic to compute the next samples to label based on the selected query strategy and `transfer_candidates_idx` handles the transfer of the selected candidate indices to the main/training dataset, updating the labeled and unlabeled sets accordingly:
 
+:point_right: Check [`compute_next_candidates` in `active_ml_utils.py`](https://github.com/mxagar/active_learning_guide/blob/main/active_ml_utils.py#L163).
+
+:point_right: Check [`transfer_candidates_idx` in `active_ml_utils.py`](https://github.com/mxagar/active_learning_guide/blob/main/active_ml_utils.py#L253).
+
+
 ```python
+# https://github.com/mxagar/active_learning_guide/blob/main/active_ml_utils.py#L163
 def compute_next_candidates(
     model: torch.nn.Module,
     pool_ds: CustomDataset,
@@ -314,102 +244,18 @@ def compute_next_candidates(
     pin_memory: bool = True,
     verbose: bool = False,
 ) -> list[int]:
-    if method not in {"random", "least_confident", "margin_sampling", "entropy", "badge", "coreset"}:
-        raise ValueError(f"Unsupported method: {method}")
+    ...
 
-    n_pool = len(pool_ds)
-    if n_pool == 0:
-        return []
-
-    # X: dummy "feature matrix" = pool indices (n_pool, 1)
-    X = np.arange(n_pool, dtype=int).reshape(-1, 1)
-
-    # y: all missing labels (assume pool is unlabeled)
-    y = np.full(n_pool, missing_label, dtype=int)
-
-    # clf: wrapper provides predict_proba(X)
-    clf = TorchClassifierWrapper(
-        model=model,
-        pool_ds=pool_ds,
-        batch_size=batch_size,
-        classes=classes,
-        missing_label=missing_label,
-        device=device,
-        num_workers=num_workers,
-        pin_memory=pin_memory,
-        random_state=seed,
-        verbose=verbose,
-    )
-
-    query_strategy = None
-    candidates_idx = []
-    k = min(query_size, n_pool)
-
-    if method == "random":
-        query_strategy = RandomSampling(
-            missing_label=missing_label,
-            random_state=seed
-        )
-        candidates_idx_array = query_strategy.query(X=X, y=y, batch_size=k, candidates=None)
-        candidates_idx = candidates_idx_array.tolist()
-
-    if method in {"least_confident", "margin_sampling", "entropy"}:
-        query_strategy = UncertaintySampling(
-            method=method,
-            missing_label=missing_label,
-            random_state=seed,
-        )
-        # Important: pass candidates=None to query from all unlabeled samples
-        candidates_idx_array = query_strategy.query(
-            X=X,
-            y=y,
-            clf=clf,
-            batch_size=k,
-            candidates=None,  # Explicitly set to query all samples marked as missing_label
-            fit_clf=False,  # Do NOT train any sklearn classifier
-        )
-        candidates_idx = candidates_idx_array.tolist()
-
-    elif method == "badge":
-        query_strategy = Badge(
-            clf_embedding_flag_name="return_embeddings",  # Matches your predict_proba arg
-            missing_label=missing_label,
-            random_state=seed,
-        )
-        candidates_idx = query_strategy.query(X=X, y=y, clf=clf, batch_size=k, candidates=None, fit_clf=False)
-        candidates_idx = [int(idx) for idx in candidates_idx]
-
-    # WARNING: candidates_idx are pool-local indices (0 to len(pool_ds)-1),
-    # NOT global indices into the original dataset!
-    return candidates_idx
-
-
+# https://github.com/mxagar/active_learning_guide/blob/main/active_ml_utils.py#L253
 def transfer_candidates_idx(
     train_idx: list[int],
     pool_idx: list[int],
     candidates_idx: np.ndarray | list[int],
 ) -> tuple[list[int], list[int], list[int]]:
-    if len(pool_idx) == 0:
-        return train_idx, pool_idx, []
-
-    cand = np.asarray(candidates_idx, dtype=int).reshape(-1)
-    if cand.size == 0:
-        return train_idx, pool_idx, []
-
-    # Convert pool-local indices -> global indices
-    candidates_global_idx = [pool_idx[i] for i in cand.tolist()]
-
-    # Add to training set (global)
-    train_new_idx = list(train_idx) + candidates_global_idx
-
-    # Remove from pool (global)
-    remove_set = set(candidates_global_idx)
-    pool_new_idx = [g for g in pool_idx if g not in remove_set]
-
-    return train_new_idx, pool_new_idx, candidates_global_idx
+    ...
 ```
 
-## Experiments... and a Surprising Result?
+## Experiments
 
 In the final section of [`active_learning.ipynb`](https://github.com/mxagar/active_learning_guide/blob/main/active_learning.ipynb) I have implemented two functions:
 
@@ -441,7 +287,7 @@ A validation batch of flower images from the <a href="https://www.kaggle.com/dat
 </small>
 </p>
 
-The experiment for each AL method follows the same iterative procedure. At iteration $t in \{1, ..., 20\}$:
+The experiment for each AL method follows the same iterative procedure. At iteration $t \in \{1, ..., 20\}$:
 
 - We train a model from scratch using the current training set.
 - We evaluate the model on the test set.
@@ -451,25 +297,27 @@ The experiment for each AL method follows the same iterative procedure. At itera
 
 Note that the model is re-trained from scratch at every iteration. This avoids bias introduced by incremental fine-tuning and ensures that performance only depends on the current training set.
 
-In the following, 
+The following figure shows the embeddings of the flower image samples at the initial iteration (iteration $t=0$) when random sampling is used. Note that the first iteration is the same for all methods, and the model is trained with 137 samples for 30 epochs.
 
 <p align="center">
 <img src="./assets/embeddings_2d_random_iter_0.png" alt="Embeddings of flower images samples in 2D." width="1000"/>
 <small style="color:grey">
-2D embeddings of flower images from the <a href="https://www.kaggle.com/datasets/imsparsh/flowers-dataset">Kaggle Flowers Dataset</a>. The embeddings are obtained from the penultimate layer of the <i>SimpleCNN</i> model and mapped to 2D using <a href="https://umap-learn.readthedocs.io/en/latest/">UMAP</a>. Each point represents an image, and colors indicate different classes, and point geometries represent the sample status: small transparent circles for unlabeled samples, bigger opaque circles for labeled ones, ans stars for selected ones. This snapshot is the initial iteration where <i>random sampling</i> was used.
+Embeddings of flower images from the <a href="https://www.kaggle.com/datasets/imsparsh/flowers-dataset">Kaggle Flowers Dataset</a>. The embeddings are obtained from the penultimate layer of the <i>SimpleCNN</i> model and mapped to 2D using <a href="https://umap-learn.readthedocs.io/en/latest/">UMAP</a>. Each point represents an image, colors indicate different classes, and point geometries represent the sample status: small transparent circles for unlabeled samples, bigger opaque circles for labeled ones, and stars for selected ones. This snapshot is the initial iteration (137 samples, 30 epochs) where <i>random sampling</i> was used.
 </small>
 </p>
+
+### A Surprising Result
+
+After running the experiments for the 5 AL methods in 20 iterations (from 137 to 1777 training samples), here're the model performance values:
 
 <p align="center">
 <img src="./assets/performance_benchmark.png" alt="Active Learning Methods Comparison." width="1000"/>
 <small style="color:grey">
-Performance comparison of different active learning methods: random sampling, maximum entropy sampling, least confident sampling, margin sampling, and BADGE. The x-axis shows the number of labeled samples, and the y-axis shows the model's accuracy on a test set. In this case, random sampling performs surprisingly well, while the other methods do not show significant improvements over random sampling.
+Performance comparison of different active learning methods: random sampling, maximum entropy sampling, least confident sampling, margin sampling, and BADGE. The X-axis shows the number of labeled samples, and the Y-axis shows the model's accuracy on the test set. In this case, random sampling performs surprisingly well, while the other methods do not show significant improvements over random sampling.
 </small>
 </p>
 
-<div style="height: 20px;"></div>
-<p align="center">── ◆ ──</p>
-<div style="height: 20px;"></div>
+Decieving, isn't it? 
 
 Now, many criticisms might arise which question the experimental setup:
 
