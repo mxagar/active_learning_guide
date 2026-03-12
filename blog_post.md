@@ -437,7 +437,7 @@ Of course, even though the pool samples are considered *"unlabeled"* for the AL 
 <p align="center">
 <img src="./assets/validation_batch.png" alt="A validation batch of flower images." width="1000"/>
 <small style="color:grey">
-A validation batch of flower images from the <a href="https://www.kaggle.com/datasets/imsparsh/flowers-dataset">Kaggle Flowers Dataset</a>. The dataset contains 5 classes of flowers: daisy, dandelion, rose, sunflower, and tulip. The images are resized to 64x64 pixels for faster training.
+A validation batch of flower images from the <a href="https://www.kaggle.com/datasets/imsparsh/flowers-dataset">Kaggle Flowers Dataset</a>. The dataset contains 5 classes of flowers: daisy, dandelion, rose, sunflower, and tulip. The images are resized to 64x64x3 pixels for faster training.
 </small>
 </p>
 
@@ -451,7 +451,7 @@ The experiment for each AL method follows the same iterative procedure. At itera
 
 Note that the model is re-trained from scratch at every iteration. This avoids bias introduced by incremental fine-tuning and ensures that performance only depends on the current training set.
 
-
+In the following, 
 
 <p align="center">
 <img src="./assets/embeddings_2d_random_iter_0.png" alt="Embeddings of flower images samples in 2D." width="1000"/>
@@ -470,6 +470,15 @@ Performance comparison of different active learning methods: random sampling, ma
 <div style="height: 20px;"></div>
 <p align="center">── ◆ ──</p>
 <div style="height: 20px;"></div>
+
+Now, many criticisms might arise which question the experimental setup:
+
+- A
+- B
+- C
+- ...
+
+... and all of them are fair and worth investigating. However, the.
 
 Uncertainty sampling:
 [Active Learning Literature Survey (Settles, 2010)](https://burrsettles.com/pub/settles.activelearning.pdf)
