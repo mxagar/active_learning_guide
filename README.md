@@ -2,7 +2,7 @@
 
 This is my small guide (& evaluation) of [Active Learning](https://en.wikipedia.org/wiki/Active_learning) (AL) using [`scikit-activeml`](https://github.com/scikit-activeml/scikit-activeml).
 
-The main idea behind AL consists in labeling only the most informative samples iteratively, as discovered by the model. The underlying assumption is that this progressive training and labeling boosts the model's performance faster than random sampling, which is the most common baseline for comparison &mdash; but, is that always the case?
+The main idea behind AL is to iteratively label only the most informative samples identified by the model itself. The underlying assumption is that this progressive training and labeling improves the model's performance faster than random sampling, which is the standard baseline for comparison &mdash; but, is that always the case?
 
 Check [my related blog post](https://mikelsagardia.io/posts/) :smile:
 
@@ -101,7 +101,7 @@ Note that there are other query strategies, too:
 
 - Random: `RandomSampling(...)`
 - Margin Sampling: `UncertaintySampling(method="margin_sampling", ...)`
-- Least Confidence: `UncertaintySampling(method="least_confidence", ...)`
+- Least Confidence: `UncertaintySampling(method="least_confident", ...)`
 - BADGE: `Badge(...)`
 - And many more!
 
@@ -118,16 +118,16 @@ Check [my related blog post](https://mikelsagardia.io/posts/) for a complete exp
 - Task: classification of 5 types of flowers (daisy, dandelion, rose, sunflower, and tulip).
 - Input images: resized to 64x64x3 pixels for faster training; random affine transformations applied to the train split for data augmentation.
 - Model: a simple, not pre-trained convolutional neural network (CNN) with 2.2 million parameters.
-- Training hyperparameters: 30 epochs per AL iteration; batch size of 64; learning rate of 0.001; AdamW optimizer and validation accuracy as the main performance decision metric.
+- Training hyperparameters: 30 epochs per AL iteration; batch size of 64; learning rate of 0.001; AdamW optimizer and validation F1 as the main performance decision metric.
 - Initial training set (iteration 0): 137 samples; initial labeled data used to train the first model.
 - Validation set: 276 samples; kept fixed across iterations to evaluate the model's performance during training.
 - Test set: 276 samples; kept fixed across iterations to evaluate the final performance of the model after each AL iteration.
 - Pool set: 2057 samples; *"unlabeled"* samples available for selection.
 - Query size: 3% of the total dataset size (2746 samples), which corresponds to 82 samples. At each iteration, we select 82 new samples from the pool to label and add to the training set.
-- Max AL iterations: 20 iterations, which means that at most 1640 samples will be labeled and added to the training set by the end of the AL process.
+- Max AL iterations: 20, which means that at most 1640 samples will be labeled and added to the training set by the end of the AL process.
 - Tested AL methods: random sampling, maximum entropy sampling, least confident sampling, margin sampling, and BADGE.
 
-The following figure shows performance comparison of different active learning methods: random sampling, maximum entropy sampling, least confident sampling, margin sampling, and BADGE. The X-axis shows the number of labeled samples, and the Y-axis shows the model's accuracy on the test set. In the example, random sampling performs surprisingly well, while the other methods do not show significant improvements over random sampling.
+The following figure shows performance comparison of different active learning methods: random sampling, maximum entropy sampling, least confident sampling, margin sampling, and BADGE. The X-axis shows the number of labeled samples, and the Y-axis shows the model's F1 on the test set. In the example, random sampling performs surprisingly well, while the other methods do not show significant improvements over random sampling.
 
 Check [my related blog post](https://mikelsagardia.io/posts/) for my discussion :smile:
 

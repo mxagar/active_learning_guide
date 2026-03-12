@@ -23,7 +23,7 @@ docker ps
 ```
 
 Title: Does Active Learning Really Work in Deep Learning?
-Subtitle: Not Always, But It Can Still Be a Better Guess than Random Sampling
+Subtitle: Not Always, But It Is Low-Cost and It Can Still Be An Educated Selection Framework
 -->
 
 <p align="center">
@@ -40,7 +40,7 @@ Deep learning models typically require large amounts of labelled data to achieve
 
 [Active Learning](https://en.wikipedia.org/wiki/Active_learning_(machine_learning)) assumes the first step is given and it defines a framework to adress the second one by using the model outputs themselves.
 
-> The main idea behind Active Learning consists in labeling only the most informative samples iteratively, as discovered by the model. The underlying assumption is that this progressive training and labeling boosts the model's performance faster than random sampling, which is the most common baseline for comparison &mdash; but, is that always the case?
+> The main idea behind AL is to iteratively label only the most informative samples identified by the model itself. The underlying assumption is that this progressive training and labeling boosts the model's performance faster than random sampling, which is the standard baseline for comparison &mdash; but, is that always the case?
 
 In this blog post, you will learn:
 
@@ -190,7 +190,7 @@ Note that there are other query strategies, too:
 
 - Random: `RandomSampling(...)`
 - Margin Sampling: `UncertaintySampling(method="margin_sampling", ...)`
-- Least Confidence: `UncertaintySampling(method="least_confidence", ...)`
+- Least Confidence: `UncertaintySampling(method="least_confident", ...)`
 - BADGE: `Badge(...)`
 - And many more!
 
@@ -198,7 +198,7 @@ In the provided code, the adaptation of the PyTorch-based classifier is handled 
 
 - During the instantiation of `TorchClassifierWrapper`, we pass a PyTorch `CustomDataset` containing references to all the unlabeled samples in the pool. In addition, we provide the trained PyTorch model.
 - Internally, `TorchClassifierWrapper` creates a PyTorch `DataLoader` for the `CustomDataset`, which expects a list of sample indices to load; this list corresponds exactly to the input vector `X`, which no longer contains the sample features themselves.
-- It also implements the method `predict_proba(X)`, which runs the `DataLoader` accessing to the indices passed in `X`, calls the PyTorch model, and outputs the model predictions (either the class probabilities or the embedding vectors).
+- It also implements the method `predict_proba(X)`, which runs the `DataLoader` accessing to the indices passed in `X`, calls the PyTorch model, and outputs the model predictions (class probabilities, and optionally embeddings when required by the query strategy, e.g., BADGE).
 
 :point_right: Check [`TorchClassifierWrapper` in `active_ml_utils.py`](https://github.com/mxagar/active_learning_guide/blob/main/active_ml_utils.py#L41).
 
@@ -269,13 +269,13 @@ As already introduced, I have used the [Kaggle Flowers Dataset](https://www.kagg
 - Task: classification of 5 types of flowers (daisy, dandelion, rose, sunflower, and tulip).
 - Input images: resized to 64x64x3 pixels for faster training; random affine transformations applied to the train split for data augmentation.
 - Model: a simple, not pre-trained convolutional neural network (CNN) with 2.2 million parameters.
-- Training hyperparameters: 30 epochs per AL iteration; batch size of 64; learning rate of 0.001; AdamW optimizer and validation accuracy as the main performance decision metric.
+- Training hyperparameters: 30 epochs per AL iteration; batch size of 64; learning rate of 0.001; AdamW optimizer and validation F1 as the main performance decision metric.
 - Initial training set (iteration 0): 137 samples; initial labeled data used to train the first model.
 - Validation set: 276 samples; kept fixed across iterations to evaluate the model's performance during training.
 - Test set: 276 samples; kept fixed across iterations to evaluate the final performance of the model after each AL iteration.
 - Pool set: 2057 samples; *"unlabeled"* samples available for selection.
 - Query size: 3% of the total dataset size (2746 samples), which corresponds to 82 samples. At each iteration, we select 82 new samples from the pool to label and add to the training set.
-- Max AL iterations: 20 iterations, which means that at most 1640 samples will be labeled and added to the training set by the end of the AL process.
+- Max AL iterations: 20, which means that at most 1640 samples will be labeled and added to the training set by the end of the AL process.
 - Tested AL methods: random sampling, maximum entropy sampling, least confident sampling, margin sampling, and BADGE.
 
 Of course, even though the pool samples are considered *"unlabeled"* for the AL process, they are actually labeled in the dataset, which allows us to evaluate the performance of the model on them.
@@ -313,7 +313,7 @@ After running the experiments for the 5 AL methods in 20 iterations (from 137 to
 <p align="center">
 <img src="./assets/performance_benchmark.png" alt="Active Learning Methods Comparison." width="1000"/>
 <small style="color:grey">
-Performance comparison of different active learning methods: random sampling, maximum entropy sampling, least confident sampling, margin sampling, and BADGE. The X-axis shows the number of labeled samples, and the Y-axis shows the model's accuracy on the test set. In this case, random sampling performs surprisingly well, while the other methods do not show significant improvements over random sampling.
+Performance comparison of different active learning methods: random sampling, maximum entropy sampling, least confident sampling, margin sampling, and BADGE. The X-axis shows the number of labeled samples, and the Y-axis shows the model's F1 on the test set. In this case, random sampling performs surprisingly well, while the other methods do not show significant improvements over random sampling.
 </small>
 </p>
 
@@ -333,11 +333,15 @@ Now, many criticisms which question the experimental setup might arise:
 
 And all of them are fair and worth investigating. However, that doesn't change the fact that **boosting our training performance with AL techniques is not straightforward**. In fact, similar effects have been already observed in the literature, especially in deep learning settings, where random sampling is often surprisingly competitive [(Ren at al., 2020)](https://arxiv.org/abs/2009.00236).
 
-I personally have applied AL several times and I was not sure whether it really provided a significant boost in performance compared to random sampling. It is indeed difficuly to evaluate that, because we usually don't have the labels. However, the bottomline is the following:
+I personally have applied AL several times and I was not sure whether it really provided a significant boost in performance compared to random sampling. It is indeed difficuly to evaluate that, because we usually don't have the labels. However, my bottomline is the following:
 
 > Even though AL techniques are designed to select the most informative samples, they don't always outperform random sampling in practice, especially in deep learning settings. 
 However, using AL techniques can still provide a good educated guess, and they are rather easy to implement and integrate into the training pipeline.
 
 ## Conclusions
+
+In this post I have introduced what [Active Learning (AL)](https://en.wikipedia.org/wiki/Active_learning_(machine_learning)) is, focusing on some of the most popular AL selection strategies: random sampling, maximum entropy sampling, least confident sampling, margin sampling, and BADGE. I have also shown how to implement those techniques using the library [`scikit-activeml`](https://github.com/scikit-activeml/scikit-activeml) and how to adapt a PyTorch model to be used with it. Finally, I have run some experiments with the [Kaggle Flowers Dataset](https://www.kaggle.com/datasets/imsparsh/flowers-dataset) to evaluate the performance of the mentioned AL methods &mdash to end up showing that random sampling performs surprisingly well compared to the other methods!
+
+> What's your experience with active learning? Do you think it provides a significant boost in performance compared to random sampling? What's missing in my experimental setup to show it really improves random sampling?
 
 
