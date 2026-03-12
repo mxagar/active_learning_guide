@@ -409,9 +409,16 @@ def transfer_candidates_idx(
     return train_new_idx, pool_new_idx, candidates_global_idx
 ```
 
-## Experiments
+## Experiments... and a Surprising Result?
 
+In the final section of [`active_learning.ipynb`]()
 
+<p align="center">
+<img src="./assets/embeddings_2d_random_iter_0.png" alt="Embeddings of flower images samples in 2D." width="1000"/>
+<small style="color:grey">
+
+</small>
+</p>
 
 <p align="center">
 <img src="./assets/performance_benchmark.png" alt="Active Learning Methods Comparison." width="1000"/>
