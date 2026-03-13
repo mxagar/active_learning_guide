@@ -4,7 +4,7 @@ This is my small guide (& evaluation) of [Active Learning](https://en.wikipedia.
 
 The main idea behind AL is to iteratively label only the most informative samples identified by the model itself. The underlying assumption is that this progressive training and labeling improves the model's performance faster than random sampling, which is the standard baseline for comparison &mdash; but, is that always the case?
 
-Check [my related blog post](https://mikelsagardia.io/posts/) :smile:
+Check [my related blog post](https://mikelsagardia.io/posts/blog/active-learning-guide-and-evaluation.html) :smile:
 
 The [Kaggle Flowers Dataset](https://www.kaggle.com/datasets/imsparsh/flowers-dataset) is used, which contains images for classification of 5 types of flowers; in the training split, the class distribution is as follows:
 
@@ -68,7 +68,7 @@ The AL selection is implemented in the function `compute_next_candidates`, which
 
 ## Active Learning in a Nutshell
 
-Check [my related blog post](https://mikelsagardia.io/posts/).
+Check [my related blog post](https://mikelsagardia.io/posts/blog/active-learning-guide-and-evaluation.html).
 
 ## About Scikit ActiveML
 
@@ -113,7 +113,7 @@ In the provided code, the adaptation of the PyTorch-based classifier is handled 
 
 ## Experiments and Results
 
-Check [my related blog post](https://mikelsagardia.io/posts/) for a complete experiment setup description; in short:
+Check [my related blog post](https://mikelsagardia.io/posts/blog/active-learning-guide-and-evaluation.html) for a complete experiment setup description; in short:
 
 - Task: classification of 5 types of flowers (daisy, dandelion, rose, sunflower, and tulip).
 - Input images: resized to 64x64x3 pixels for faster training; random affine transformations applied to the train split for data augmentation.
@@ -129,7 +129,7 @@ Check [my related blog post](https://mikelsagardia.io/posts/) for a complete exp
 
 The following figure shows performance comparison of different active learning methods: random sampling, maximum entropy sampling, least confident sampling, margin sampling, and BADGE. The X-axis shows the number of labeled samples, and the Y-axis shows the model's F1 on the test set. In the example, random sampling performs surprisingly well, while the other methods do not show significant improvements over random sampling.
 
-Check [my related blog post](https://mikelsagardia.io/posts/) for my discussion :smile:
+Check [my related blog post](https://mikelsagardia.io/posts/blog/active-learning-guide-and-evaluation.html) for my discussion :smile:
 
 ![Performance benchmarking results](./assets/performance_benchmark.png)
 
